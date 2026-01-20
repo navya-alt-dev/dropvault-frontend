@@ -1,51 +1,186 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
+import { authAPI } from '../services/api';  // ✅ ADD THIS IMPORT
 
 const AuthContext = createContext(null);
 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Check authentication on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken) {
-      setToken(storedToken);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error('Error parsing stored user:', e);
-        }
-      }
-      verifyAuth(storedToken);
-    } else {
-      setLoading(false);
-    }
+    checkAuth();
   }, []);
 
-  // Add verifyEmail method
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
+        // Verify with backend
+        const response = await authAPI.checkAuth();
+        
+        if (response.data.authenticated) {
+          setUser(response.data.user || JSON.parse(storedUser));
+          setIsAuthenticated(true);
+        } else {
+          // Token invalid, clear storage
+          clearAuth();
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      clearAuth();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearAuth = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('sessionid');
+    localStorage.removeItem('user');
+    localStorage.removeItem('pendingVerificationEmail');
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
+  const login = async (credentials) => {
+    try {
+      const response = await authAPI.login(credentials);
+      
+      if (response.data.success) {
+        const { token, sessionid, user: userData } = response.data;
+        
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+        if (userData) localStorage.setItem('user', JSON.stringify(userData));
+        
+        setUser(userData);
+        setIsAuthenticated(true);
+        
+        return { success: true };
+      }
+      
+      return { 
+        success: false, 
+        error: response.data.error,
+        requires_verification: response.data.requires_verification,
+        email: response.data.email
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      const errorData = error.response?.data || {};
+      
+      return { 
+        success: false, 
+        error: errorData.error || 'Login failed',
+        requires_verification: errorData.requires_verification,
+        email: errorData.email
+      };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await authAPI.register(userData);
+      
+      if (response.data.success) {
+        // Check if verification is required
+        if (response.data.requires_verification) {
+          return { 
+            success: true, 
+            requires_verification: true,
+            message: response.data.message 
+          };
+        }
+        
+        // Direct login (for Google OAuth)
+        const { token, sessionid, user: newUser } = response.data;
+        
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+        if (newUser) localStorage.setItem('user', JSON.stringify(newUser));
+        
+        setUser(newUser);
+        setIsAuthenticated(true);
+        
+        return { success: true };
+      }
+      
+      return { 
+        success: false, 
+        error: response.data.error,
+        requires_verification: response.data.requires_verification
+      };
+    } catch (error) {
+      console.error('Register error:', error);
+      const errorData = error.response?.data || {};
+      
+      return { 
+        success: false, 
+        error: errorData.error || 'Registration failed',
+        requires_verification: errorData.requires_verification
+      };
+    }
+  };
+
+  const googleLogin = async (code) => {
+    try {
+      const response = await authAPI.googleLogin(code);
+      
+      if (response.data.success) {
+        const { token, sessionid, user: userData } = response.data;
+        
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+        if (userData) localStorage.setItem('user', JSON.stringify(userData));
+        
+        setUser(userData);
+        setIsAuthenticated(true);
+        
+        return { success: true };
+      }
+      
+      return { success: false, error: response.data.error };
+    } catch (error) {
+      console.error('Google login error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Google login failed' 
+      };
+    }
+  };
+
   const verifyEmail = async (token) => {
     try {
       const response = await authAPI.verifyEmail(token);
       
       if (response.data.success) {
-        // Store auth tokens
-        if (response.data.token) {
-          localStorage.setItem('token', response.data.token);
-        }
-        if (response.data.sessionid) {
-          localStorage.setItem('sessionid', response.data.sessionid);
-        }
-        if (response.data.user) {
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-          setUser(response.data.user);
-        }
+        const { token: authToken, sessionid, user: userData } = response.data;
+        
+        if (authToken) localStorage.setItem('token', authToken);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+        if (userData) localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Clear pending verification email
+        localStorage.removeItem('pendingVerificationEmail');
+        
+        setUser(userData);
+        setIsAuthenticated(true);
         
         return { success: true };
       }
@@ -58,25 +193,27 @@ export const AuthProvider = ({ children }) => {
       };
     } catch (error) {
       console.error('Verify email error:', error);
-      const data = error.response?.data || {};
+      const errorData = error.response?.data || {};
+      
       return { 
         success: false, 
-        error: data.error || 'Verification failed',
-        expired: data.expired,
-        email: data.email
+        error: errorData.error || 'Verification failed',
+        expired: errorData.expired,
+        email: errorData.email
       };
     }
   };
 
-  // Add resendVerification method
   const resendVerification = async (email) => {
     try {
       const response = await authAPI.resendVerification(email);
       return { 
         success: response.data.success, 
+        message: response.data.message,
         error: response.data.error 
       };
     } catch (error) {
+      console.error('Resend verification error:', error);
       return { 
         success: false, 
         error: error.response?.data?.error || 'Failed to send email' 
@@ -84,189 +221,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyAuth = async (authToken) => {
-    try {
-      const response = await fetch(`${API_URL}/api/auth/check/`, {
-        headers: {
-          'Authorization': `Token ${authToken}`,
-        },
-      });
-      
-      const data = await response.json();
-      
-      if (data.authenticated) {
-        setUser(data.user);
-        localStorage.setItem('user', JSON.stringify(data.user));
-      } else {
-        handleLogout();
-      }
-    } catch (error) {
-      console.error('Auth verification error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      const response = await fetch(`${API_URL}/api/signup/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        if (data.requires_verification) {
-          return {
-            success: true,
-            requires_verification: true,
-            email: userData.email,
-          };
-        } else if (data.token) {
-          // Direct login
-          setToken(data.token);
-          setUser(data.user);
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          return { success: true };
-        }
-      }
-      
-      return {
-        success: false,
-        error: data.error || 'Registration failed',
-      };
-    } catch (error) {
-      console.error('Register error:', error);
-      return {
-        success: false,
-        error: 'Network error. Please try again.',
-      };
-    }
-  };
-
-  const login = async (credentials) => {
-    try {
-      const response = await fetch(`${API_URL}/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.sessionid) {
-          localStorage.setItem('sessionid', data.sessionid);
-        }
-        return { success: true };
-      } else if (response.status === 403 && data.requires_verification) {
-        return { 
-          success: false, 
-          requires_verification: true,
-          email: data.email,
-          error: data.error || 'Please verify your email first'
-        };
-      } else {
-        return { 
-          success: false, 
-          error: data.error || 'Login failed' 
-        };
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
-      };
-    }
-  };
-
-  const loginWithGoogle = async (code) => {
-    try {
-      const response = await fetch(`${API_URL}/api/auth/google/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.sessionid) {
-          localStorage.setItem('sessionid', data.sessionid);
-        }
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: data.error || 'Google login failed' 
-        };
-      }
-    } catch (error) {
-      console.error('Google login error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
-      };
-    }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('sessionid');
-    localStorage.removeItem('pendingVerificationEmail');
-  };
-
   const logout = async () => {
     try {
-      if (token) {
-        await fetch(`${API_URL}/api/logout/`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${token}`,
-          },
-        });
-      }
+      await authAPI.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      handleLogout();
+      clearAuth();
     }
   };
 
-  const isAuthenticated = !!token && !!user;
-
   const value = {
     user,
-    setUser,
-    token,
-    setToken,
     loading,
-    register,
-    login,
-    loginWithGoogle,
-    logout,
     isAuthenticated,
+    login,
+    register,
+    googleLogin,
+    verifyEmail,
+    resendVerification,
+    logout,
+    checkAuth,
   };
 
   return (
@@ -276,10 +251,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export default AuthContext;
