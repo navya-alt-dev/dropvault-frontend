@@ -4,18 +4,25 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
+const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
+
 const GoogleCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { loginWithGoogle } = useAuth();
+  const { setUser, setToken } = useAuth();
   const [status, setStatus] = useState('Processing...');
 
   useEffect(() => {
     const code = searchParams.get('code');
     const error = searchParams.get('error');
 
+    console.log('Google callback received');
+    console.log('Code:', code ? 'Present' : 'Missing');
+    console.log('Error:', error);
+
     if (error) {
-      toast.error('Google login was cancelled');
+      console.error('Google OAuth error:', error);
+      toast.error('Google login was cancelled or failed');
       navigate('/login');
       return;
     }
@@ -26,19 +33,42 @@ const GoogleCallback = () => {
       toast.error('No authorization code received');
       navigate('/login');
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const handleGoogleLogin = async (code) => {
     setStatus('Signing you in...');
     
     try {
-      const result = await loginWithGoogle(code);
+      console.log('Sending code to backend...');
       
-      if (result.success) {
+      const response = await fetch(`${API_URL}/api/auth/google/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+      console.log('Backend response:', data);
+
+      if (data.success) {
+        // Store auth data
+        localStorage.setItem('token', data.token);
+        if (data.sessionid) {
+          localStorage.setItem('sessionid', data.sessionid);
+        }
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          setUser(data.user);
+        }
+        setToken(data.token);
+        
         toast.success('Welcome to DropVault!');
         navigate('/dashboard');
       } else {
-        toast.error(result.error || 'Google login failed');
+        console.error('Google login failed:', data.error);
+        toast.error(data.error || 'Google login failed');
         navigate('/login');
       }
     } catch (error) {
@@ -64,7 +94,7 @@ const GoogleCallback = () => {
         borderRadius: '1rem',
         textAlign: 'center'
       }}>
-        <div className="verify-spinner" style={{
+        <div style={{
           width: '60px',
           height: '60px',
           border: '4px solid rgba(255,255,255,0.3)',

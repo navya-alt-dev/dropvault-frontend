@@ -1,4 +1,4 @@
-// src/pages/LoginPage.jsx
+// src/pages/LoginPage.jsx - COMPLETE FIXED VERSION
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -39,13 +39,11 @@ const LoginPage = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user types
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-// REPLACE this function only:
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -58,45 +56,55 @@ const LoginPage = () => {
     
     try {
       const result = await login({ 
-        email: formData.email, 
+        email: formData.email.trim().toLowerCase(), 
         password: formData.password 
       });
       
       if (result.success) {
         toast.success('Welcome back!');
         navigate('/dashboard');
+      } else if (result.requires_verification) {
+        // Email not verified
+        toast.error('Please verify your email first');
+        localStorage.setItem('pendingVerificationEmail', formData.email);
+        navigate('/verify-pending', { state: { email: formData.email } });
       } else {
-        toast.error(result.error || 'Login failed. Please check your credentials.');
-        setErrors({ 
-          email: ' ', 
-          password: result.error || 'Invalid email or password' 
-        });
+        toast.error(result.error || 'Login failed');
+        setErrors({ password: result.error || 'Invalid credentials' });
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = () => {
+    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      toast.error('Google login is not configured');
+      return;
+    }
+
+    const redirectUri = `${window.location.origin}/google-callback`;
+    
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-      client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
-      redirect_uri: `${window.location.origin}/google-callback`,
+      client_id: clientId,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',
       prompt: 'consent',
     })}`;
     
-    // Redirect to Google OAuth
+    console.log('Google OAuth - Redirect URI:', redirectUri);
     window.location.href = googleAuthUrl;
   };
 
   return (
     <div className="auth-page">
-      {/* Background Elements */}
       <div className="auth-bg">
         <div className="auth-bg-shape auth-bg-shape-1"></div>
         <div className="auth-bg-shape auth-bg-shape-2"></div>
@@ -104,7 +112,7 @@ const LoginPage = () => {
       </div>
 
       <div className="auth-container">
-        {/* Left Side - Branding */}
+        {/* Left Side */}
         <div className="auth-branding">
           <div className="auth-branding-content">
             <Link to="/" className="auth-logo">
@@ -121,59 +129,12 @@ const LoginPage = () => {
             </h1>
             
             <p className="auth-branding-text">
-              Store, share, and collaborate on files securely. Access your files from anywhere, anytime.
+              Store, share, and collaborate on files securely.
             </p>
-
-            <div className="auth-features">
-              <div className="auth-feature">
-                <div className="auth-feature-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <div>
-                  <h4>Bank-Level Security</h4>
-                  <p>256-bit AES encryption</p>
-                </div>
-              </div>
-              
-              <div className="auth-feature">
-                <div className="auth-feature-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </div>
-                <div>
-                  <h4>Easy Uploads</h4>
-                  <p>Drag & drop anywhere</p>
-                </div>
-              </div>
-              
-              <div className="auth-feature">
-                <div className="auth-feature-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
-                </div>
-                <div>
-                  <h4>Instant Sharing</h4>
-                  <p>Share with anyone securely</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="auth-branding-footer">
-            <p>Trusted by 10,000+ users worldwide</p>
-            <div className="auth-trust-badges">
-              <span>🔒 SSL Secured</span>
-              <span>✓ GDPR Compliant</span>
-              <span>☁️ 99.9% Uptime</span>
-            </div>
           </div>
         </div>
 
-        {/* Right Side - Form */}
+        {/* Right Side */}
         <div className="auth-form-section">
           <div className="auth-form-container">
             <div className="auth-form-header">
@@ -181,7 +142,6 @@ const LoginPage = () => {
               <p>Sign in to access your files</p>
             </div>
 
-            {/* Google Login */}
             <button 
               type="button" 
               className="auth-google-btn"
@@ -200,7 +160,6 @@ const LoginPage = () => {
               <span>or sign in with email</span>
             </div>
 
-            {/* Login Form */}
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="form-group">
                 <label htmlFor="email">Email address</label>
@@ -216,7 +175,6 @@ const LoginPage = () => {
                     onChange={handleChange}
                     placeholder="Enter your email"
                     className={errors.email ? 'error' : ''}
-                    autoComplete="email"
                   />
                 </div>
                 {errors.email && <span className="error-message">{errors.email}</span>}
@@ -225,9 +183,7 @@ const LoginPage = () => {
               <div className="form-group">
                 <div className="label-row">
                   <label htmlFor="password">Password</label>
-                  <Link to="/forgot-password" className="forgot-link">
-                    Forgot password?
-                  </Link>
+                  <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
                 </div>
                 <div className="input-wrapper">
                   <svg className="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -241,7 +197,6 @@ const LoginPage = () => {
                     onChange={handleChange}
                     placeholder="Enter your password"
                     className={errors.password ? 'error' : ''}
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -249,27 +204,10 @@ const LoginPage = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
                   >
-                    {showPassword ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
                   </button>
                 </div>
                 {errors.password && <span className="error-message">{errors.password}</span>}
-              </div>
-
-              <div className="form-group checkbox-group">
-                <label className="checkbox-label">
-                  <input type="checkbox" name="remember" />
-                  <span className="checkmark"></span>
-                  Keep me signed in
-                </label>
               </div>
 
               <button 
@@ -282,22 +220,13 @@ const LoginPage = () => {
                     <span className="btn-spinner"></span>
                     Signing in...
                   </>
-                ) : (
-                  <>
-                    Sign in
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
-                  </>
-                )}
+                ) : 'Sign in'}
               </button>
             </form>
 
             <p className="auth-footer-text">
               Don't have an account?{' '}
-              <Link to="/register" className="auth-link">
-                Create free account
-              </Link>
+              <Link to="/register" className="auth-link">Create free account</Link>
             </p>
           </div>
         </div>
