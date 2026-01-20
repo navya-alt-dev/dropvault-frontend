@@ -769,3 +769,204 @@
   50% { transform: scale(1.01); }
   100% { transform: scale(1); }
 }
+
+/* ==================== VERIFICATION PAGES STYLES ==================== */
+/* Add this at the bottom of your existing auth.css */
+
+/* Verification Icon Container */
+.verify-icon-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.verify-icon {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+}
+
+.verify-icon svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  stroke: #6366f1;
+}
+
+/* Verification Icon States */
+.verify-icon-success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+}
+
+.verify-icon-success svg {
+  stroke: #10b981;
+}
+
+.verify-icon-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+}
+
+.verify-icon-error svg {
+  stroke: #ef4444;
+}
+
+.verify-icon-expired {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
+}
+
+.verify-icon-expired svg {
+  stroke: #f59e0b;
+}
+
+.verify-icon-loading {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+}
+
+/* Verification Spinner */
+.verify-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.verify-spinner-small {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Email Display Box */
+.verify-email-display {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.verify-email-display span {
+  font-weight: 600;
+  color: #6366f1;
+  font-size: 1rem;
+  word-break: break-all;
+}
+
+/* Verification Instructions */
+.verify-instructions {
+  color: #64748b;
+  font-size: 0.9375rem;
+  text-align: center;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+/* Change Email Button */
+.verify-change-email {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 1rem;
+  background: transparent;
+  border: none;
+  color: #6366f1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.verify-change-email:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+/* Redirect Text */
+.verify-redirect-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-top: 1.5rem;
+}
+
+/* Button with Icon */
+.auth-submit-btn .btn-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.5rem;
+}
+
+/* Auth Features (for Signup page) */
+.auth-features {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-feature {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9375rem;
+}
+
+.auth-feature-icon {
+  font-size: 1.25rem;
+}
+
+/* Terms Notice */
+.terms-notice {
+  font-size: 0.8125rem;
+  color: #64748b;
+  text-align: center;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.terms-notice a {
+  color: #6366f1;
+  text-decoration: none;
+}
+
+.terms-notice a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments for verification pages */
+@media (max-width: 768px) {
+  .verify-icon {
+    width: 4rem;
+    height: 4rem;
+  }
+  
+  .verify-icon svg {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .verify-spinner {
+    width: 2rem;
+    height: 2rem;
+  }
+}

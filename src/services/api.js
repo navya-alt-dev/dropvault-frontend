@@ -23,7 +23,6 @@ const FINAL_USE_MOCK = FORCE_REAL_API ? false : isDevelopment;
 console.log('🌍 Environment Check:');
 console.log('  - Hostname:', window.location.hostname);
 console.log('  - Is Development:', isDevelopment);
-console.log('  - NODE_ENV:', process.env.NODE_ENV);
 console.log('  - Force Real API:', FORCE_REAL_API);
 console.log('  - Using Mock API:', FINAL_USE_MOCK);
 console.log('  - API Base URL:', API_BASE_URL);
@@ -38,19 +37,19 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// ==================== REQUEST INTERCEPTOR ====================
+// ==================== SINGLE REQUEST INTERCEPTOR (FIXED) ====================
 api.interceptors.request.use(
   (config) => {
-    // ✅ CRITICAL FIX: Get token and add to Authorization header
+    // Get stored credentials
     const token = localStorage.getItem('token');
     const sessionId = localStorage.getItem('sessionid');
     
-    // Add token to Authorization header if available
+    // Add Authorization header if we have a valid token
     if (token && token !== 'session-based-auth' && token !== 'session-based') {
       config.headers.Authorization = `Token ${token}`;
     }
     
-    // Also add session ID as custom header (backup)
+    // Add session ID as backup (now allowed in CORS)
     if (sessionId) {
       config.headers['X-Session-ID'] = sessionId;
     }
@@ -59,41 +58,61 @@ api.interceptors.request.use(
       method: config.method?.toUpperCase(),
       url: config.url,
       fullURL: `${config.baseURL}${config.url}`,
-      hasToken: !!token,
+      hasToken: !!token && token !== 'session-based',
       hasSessionId: !!sessionId
     });
     
     return config;
   },
   (error) => {
-    console.error('❌ Request error:', error);
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// ==================== REQUEST INTERCEPTOR - SIMPLIFIED ====================
-api.interceptors.request.use(
-  (config) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    
-    // ✅ ONLY add Authorization header - NO custom headers
-    if (token && token !== 'session-based-auth' && token !== 'session-based') {
-      config.headers.Authorization = `Token ${token}`;
-    }
-    
-    // ❌ REMOVED: X-Session-ID header (causes CORS issues)
-    
-    console.log('📤 API Request:', {
-      method: config.method?.toUpperCase(),
-      url: config.url,
-      hasToken: !!token && token !== 'session-based'
+// ==================== RESPONSE INTERCEPTOR ====================
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', {
+      url: response.config.url,
+      status: response.status,
+      success: response.data?.success
     });
-    
-    return config;
+    return response;
   },
   (error) => {
-    console.error('❌ Request error:', error);
+    console.error('❌ API Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      message: error.response?.data?.error || error.message
+    });
+    
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401) {
+      console.log('🔒 Unauthorized - clearing auth');
+      localStorage.removeItem('token');
+      localStorage.removeItem('sessionid');
+      localStorage.removeItem('user');
+      
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    
+    // Handle 403 - Email verification required
+    if (error.response?.status === 403) {
+      const data = error.response.data;
+      if (data?.requires_verification) {
+        console.log('📧 Email verification required');
+        // Store email for verification page
+        if (data.email) {
+          localStorage.setItem('pending_verification_email', data.email);
+        }
+        window.location.href = '/verify-pending';
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -104,12 +123,12 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
     console.log('🔐 Attempting login to:', `${API_BASE_URL}/login/`);
     const response = await api.post('/login/', credentials);
     
-    // ✅ CRITICAL: Store both token and sessionid
     if (response.data.success) {
-      const { token, sessionid } = response.data;
+      const { token, sessionid, user } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
-      console.log('✅ Stored auth tokens');
+      if (user) localStorage.setItem('user', JSON.stringify(user));
+      console.log('✅ Login successful, stored auth tokens');
     }
     
     return response;
@@ -119,11 +138,16 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
     console.log('📝 Attempting registration to:', `${API_BASE_URL}/signup/`);
     const response = await api.post('/signup/', userData);
     
-    // Store tokens on successful registration
-    if (response.data.success) {
-      const { token, sessionid } = response.data;
+    // Don't store tokens yet - wait for email verification
+    if (response.data.requires_verification) {
+      console.log('📧 Registration successful - verification required');
+      localStorage.setItem('pending_verification_email', userData.email);
+    } else if (response.data.success && response.data.token) {
+      // Only store if no verification required (shouldn't happen for email signup)
+      const { token, sessionid, user } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
+      if (user) localStorage.setItem('user', JSON.stringify(user));
     }
     
     return response;
@@ -133,16 +157,27 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
     console.log('🔐 Google OAuth to:', `${API_BASE_URL}/auth/google/`);
     const response = await api.post('/auth/google/', { code });
     
-    // Store tokens on successful Google login
     if (response.data.success) {
-      const { token, sessionid } = response.data;
+      const { token, sessionid, user } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
+      if (user) localStorage.setItem('user', JSON.stringify(user));
+      console.log('✅ Google login successful');
     }
     
     return response;
   },
-  
+
+  verifyEmail: async (token) => {
+    console.log('✉️ Verifying email with token');
+    return api.get(`/verify-email-token/?token=${token}`);
+  },
+
+  resendVerification: async (email) => {
+    console.log('📧 Resending verification to:', email);
+    return api.post('/resend-verification/', { email });
+  },
+
   logout: async () => {
     console.log('🚪 Logging out');
     try {
@@ -150,9 +185,10 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
     } catch (e) {
       console.log('Logout API call failed, clearing local storage anyway');
     }
-    // Always clear local storage
     localStorage.removeItem('token');
     localStorage.removeItem('sessionid');
+    localStorage.removeItem('user');
+    localStorage.removeItem('pending_verification_email');
   },
   
   getProfile: () => {
@@ -163,6 +199,18 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   checkAuth: () => {
     console.log('🔍 Checking auth status');
     return api.get('/auth/check/');
+  },
+  
+  forgotPassword: (email) => {
+    return api.post('/forgot-password/', { email });
+  },
+  
+  resetPassword: (token, password) => {
+    return api.post('/reset-password/', { token, password });
+  },
+  
+  setPassword: (password, confirmPassword) => {
+    return api.post('/set-password/', { password, confirm_password: confirmPassword });
   },
 };
 
@@ -177,6 +225,7 @@ export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
     console.log('📤 Uploading file');
     return api.post('/upload/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000, // 5 minutes for uploads
       onUploadProgress,
     });
   },
@@ -196,9 +245,35 @@ export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
     return api.post(`/restore/${fileId}/`);
   },
   
-  shareFile: (fileId, data) => api.post(`/share/${fileId}/`, data),
-  getSharedFiles: () => api.get('/shared/'),
-  downloadFile: (fileId) => api.get(`/download/${fileId}/`, { responseType: 'blob' }),
+  permanentDelete: (fileId) => {
+    console.log('🔥 Permanently deleting:', fileId);
+    return api.delete(`/trash/permanent/${fileId}/`);
+  },
+  
+  emptyTrash: () => {
+    console.log('🗑️ Emptying trash');
+    return api.delete('/trash/empty/');
+  },
+  
+  shareFile: (fileId, data) => {
+    console.log('🔗 Sharing file:', fileId);
+    return api.post(`/share/${fileId}/`, data);
+  },
+  
+  shareViaEmail: (fileId, data) => {
+    console.log('📧 Sharing via email:', fileId);
+    return api.post(`/share/${fileId}/email/`, data);
+  },
+  
+  getSharedFiles: () => {
+    console.log('🔗 Getting shared files');
+    return api.get('/shared/');
+  },
+  
+  downloadFile: async (fileId) => {
+    console.log('⬇️ Downloading file:', fileId);
+    return api.get(`/download/${fileId}/`, { responseType: 'blob' });
+  },
 };
 
 // ==================== DASHBOARD API ====================
@@ -206,6 +281,31 @@ export const dashboardAPI = FINAL_USE_MOCK ? mockDashboardAPI : {
   getStats: () => {
     console.log('📊 Getting dashboard stats');
     return api.get('/dashboard/');
+  },
+  
+  getStorage: () => {
+    console.log('💾 Getting storage info');
+    return api.get('/user/storage/');
+  },
+};
+
+// ==================== NOTIFICATIONS API ====================
+export const notificationsAPI = {
+  getAll: () => {
+    console.log('🔔 Getting notifications');
+    return api.get('/notifications/');
+  },
+  
+  markAsRead: (notificationId) => {
+    return api.post(`/notifications/${notificationId}/read/`);
+  },
+  
+  markAllAsRead: () => {
+    return api.post('/notifications/read-all/');
+  },
+  
+  delete: (notificationId) => {
+    return api.delete(`/notifications/${notificationId}/delete/`);
   },
 };
 

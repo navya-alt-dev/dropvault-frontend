@@ -29,6 +29,61 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Add verifyEmail method
+  const verifyEmail = async (token) => {
+    try {
+      const response = await authAPI.verifyEmail(token);
+      
+      if (response.data.success) {
+        // Store auth tokens
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+        if (response.data.sessionid) {
+          localStorage.setItem('sessionid', response.data.sessionid);
+        }
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          setUser(response.data.user);
+        }
+        
+        return { success: true };
+      }
+      
+      return { 
+        success: false, 
+        error: response.data.error,
+        expired: response.data.expired,
+        email: response.data.email
+      };
+    } catch (error) {
+      console.error('Verify email error:', error);
+      const data = error.response?.data || {};
+      return { 
+        success: false, 
+        error: data.error || 'Verification failed',
+        expired: data.expired,
+        email: data.email
+      };
+    }
+  };
+
+  // Add resendVerification method
+  const resendVerification = async (email) => {
+    try {
+      const response = await authAPI.resendVerification(email);
+      return { 
+        success: response.data.success, 
+        error: response.data.error 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Failed to send email' 
+      };
+    }
+  };
+
   const verifyAuth = async (authToken) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/check/`, {
