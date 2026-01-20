@@ -107,6 +107,48 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async (userData) => {
+    try {
+      const response = await fetch(`${API_URL}/api/signup/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        if (data.requires_verification) {
+          return {
+            success: true,
+            requires_verification: true,
+            email: userData.email,
+          };
+        } else if (data.token) {
+          // Direct login
+          setToken(data.token);
+          setUser(data.user);
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          return { success: true };
+        }
+      }
+      
+      return {
+        success: false,
+        error: data.error || 'Registration failed',
+      };
+    } catch (error) {
+      console.error('Register error:', error);
+      return {
+        success: false,
+        error: 'Network error. Please try again.',
+      };
+    }
+  };
+
   const login = async (credentials) => {
     try {
       const response = await fetch(`${API_URL}/api/login/`, {
@@ -220,6 +262,7 @@ export const AuthProvider = ({ children }) => {
     token,
     setToken,
     loading,
+    register,
     login,
     loginWithGoogle,
     logout,
