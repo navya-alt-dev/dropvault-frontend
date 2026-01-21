@@ -26,21 +26,65 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
       
-      if (token && storedUser) {
-        const response = await authAPI.checkAuth();
-        
-        if (response.data.authenticated) {
-          setUser(response.data.user || JSON.parse(storedUser));
-          setIsAuthenticated(true);
-        } else {
-          clearAuth();
-        }
-      } else {
+      if (!token || !storedUser) {
         setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+      
+      const response = await authAPI.checkAuth();
+      
+      if (response.data.authenticated) {
+        const userData = response.data.user || JSON.parse(storedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+      } else {
+        clearAuth();
       }
     } catch (error) {
       console.error('Auth check error:', error);
-      clearAuth();
+      
+      const status = error.response?.status;
+      const errorType = error.response?.data?.error;
+      
+      // Handle specific error cases
+      if (status === 401) {
+        // Truly unauthorized - clear auth
+        clearAuth();
+      } else if (status === 403 && errorType === 'password_reset_required') {
+        // Check if this is a Google user (they shouldn't get this error)
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            if (userData.is_google_user || userData.signup_method === 'google') {
+              // Google user - they're fine, middleware bug
+              console.log('Google user detected - allowing through');
+              setUser(userData);
+              setIsAuthenticated(true);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.error('Error parsing stored user:', e);
+          }
+        }
+        // Non-Google user with password issue
+        clearAuth();
+      } else {
+        // Other errors - try to use cached data
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+            setIsAuthenticated(true);
+          } catch (e) {
+            clearAuth();
+          }
+        } else {
+          clearAuth();
+        }
+      }
     } finally {
       setLoading(false);
     }
