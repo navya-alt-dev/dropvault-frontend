@@ -1,7 +1,7 @@
 /* src/styles/sidebar.css */
+/* ==================== COMPLETELY FIXED VERSION ==================== */
 
-/* ==================== SIDEBAR STYLES ==================== */
-
+/* ==================== SIDEBAR BASE ==================== */
 .sidebar {
   position: fixed;
   left: 0;
@@ -12,7 +12,7 @@
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: 1000;
   transition: transform 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.03);
 }
@@ -28,6 +28,7 @@
   align-items: center;
   gap: 0.75rem;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .logo-icon {
@@ -95,6 +96,7 @@
   font-weight: 500;
   font-size: 0.9375rem;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .nav-link:hover {
@@ -137,7 +139,7 @@
   color: inherit;
 }
 
-/* ==================== STORAGE SECTION - FIXED ALIGNMENT ==================== */
+/* ==================== STORAGE SECTION ==================== */
 .sidebar-storage {
   padding: 1rem 1.5rem;
   margin: 0 1rem;
@@ -188,7 +190,6 @@
   background: linear-gradient(90deg, #ef4444, #dc2626);
 }
 
-/* FIXED: Proper alignment for percentage */
 .storage-footer {
   display: flex;
   justify-content: flex-start;
@@ -200,11 +201,13 @@
   font-weight: 500;
   color: #64748b;
 }
+
 /* ==================== USER FOOTER ==================== */
 .sidebar-user {
   padding: 1rem 1.5rem;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #e2e8f0;
   background: #fafbfc;
+  margin-top: auto;
 }
 
 .user-info {
@@ -215,10 +218,11 @@
 }
 
 .user-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 0.625rem;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -226,7 +230,7 @@
   font-weight: 600;
   font-size: 1rem;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
 .user-details {
@@ -254,31 +258,50 @@
   line-height: 1.3;
 }
 
+/* ==================== LOGOUT BUTTON ==================== */
 .logout-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 8px;
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 0.5rem;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 600;
-  font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
 .logout-btn:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+}
+
+.logout-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .logout-btn svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.logout-btn span {
+  white-space: nowrap;
 }
 
 /* ==================== MOBILE TOGGLE ==================== */
@@ -287,7 +310,7 @@
   position: fixed;
   top: 1rem;
   left: 1rem;
-  z-index: 150;
+  z-index: 1050;
   padding: 0.625rem;
   background: white;
   border: 1px solid #e2e8f0;
@@ -308,7 +331,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 90;
+  z-index: 900;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -336,33 +359,136 @@
   }
 }
 
-/* ==================== CRITICAL FIX: CLICKABILITY ==================== */
+/* ==================== FORCE CLICKABILITY FIX ==================== */
 .sidebar {
-  z-index: 1000 !important; /* Override any conflicts */
+  pointer-events: auto !important;
+  z-index: 1000 !important;
+}
+
+.sidebar * {
+  pointer-events: auto !important;
 }
 
 .nav-link {
-  cursor: pointer !important;
   pointer-events: auto !important;
-  position: relative;
-  z-index: 2;
-}
-
-.nav-link:hover {
   cursor: pointer !important;
-}
-
-/* Prevent child elements from blocking clicks */
-.nav-link * {
-  pointer-events: none;
-}
-
-.sidebar-logo {
-  cursor: pointer !important;
-  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 .logout-btn {
-  cursor: pointer !important;
   pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.sidebar-logo {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* ==================== PRICING LINK STYLES ==================== */
+
+/* Pricing Nav Link - Special Styling */
+.nav-link.pricing-link {
+  position: relative;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  margin-top: 0.5rem;
+}
+
+.nav-link.pricing-link:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.nav-link.pricing-link.active {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-color: transparent;
+}
+
+.nav-link.pricing-link.active .nav-label {
+  color: white;
+}
+
+.nav-link.pricing-link.active .nav-icon svg {
+  stroke: white;
+}
+
+.nav-link.pricing-link.active .pro-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+/* PRO Badge */
+.pro-badge {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 0.25rem;
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.05);
+  }
+}
+
+/* Pricing link icon special color */
+.nav-link.pricing-link .nav-icon svg {
+  stroke: #8b5cf6;
+}
+
+.nav-link.pricing-link:hover .nav-icon svg {
+  stroke: #6366f1;
+}
+
+/* Storage Upgrade Hint Link */
+.storage-upgrade-hint {
+  display: block;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6366f1;
+  text-decoration: none;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.storage-upgrade-hint:hover {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .pro-badge {
+    font-size: 0.5rem;
+    padding: 0.125rem 0.375rem;
+  }
+  
+  .storage-upgrade-hint {
+    font-size: 0.6875rem;
+    padding: 0.375rem 0.5rem;
+  }
 }
