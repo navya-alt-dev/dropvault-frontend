@@ -50,37 +50,53 @@ const LoginPage = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      toast.error('Please fix the errors before submitting');
       return;
     }
     
     setLoading(true);
     
     try {
-      const result = await login({ 
-        email: formData.email, 
-        password: formData.password 
+      const result = await login({
+        email: formData.email,
+        password: formData.password
       });
       
       if (result.success) {
-        toast.success('Welcome back!');
+        toast.success('Login successful!');
         navigate('/dashboard');
-      } else if (result.requires_verification) {
-        // Email not verified - redirect to verification page
-        toast.error('Please verify your email first');
-        navigate('/verify-pending', { 
-          state: { email: formData.email } 
-        });
       } else {
-        toast.error(result.error || 'Login failed. Please check your credentials.');
-        setErrors({ 
-          email: ' ', 
-          password: result.error || 'Invalid email or password' 
-        });
+        // ✅ Handle Google account error
+        if (result.is_google_account) {
+          toast.error(
+            <div>
+              <p>{result.error}</p>
+              <button 
+                onClick={() => navigate('/settings')}
+                style={{
+                  marginTop: '10px',
+                  padding: '8px 16px',
+                  background: '#4f46e5',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Set Password in Settings
+              </button>
+            </div>,
+            { duration: 6000 }
+          );
+        } else if (result.requires_verification) {
+          toast.error('Please verify your email first');
+          navigate('/verify-pending', { state: { email: formData.email } });
+        } else {
+          toast.error(result.error || 'Login failed');
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
