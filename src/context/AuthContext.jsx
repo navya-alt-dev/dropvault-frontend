@@ -1,5 +1,5 @@
-// src/context/AuthContext.jsx - COMPLETE FILE
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// src/context/AuthContext.jsx
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -16,12 +16,22 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // ✅ Refs to prevent duplicate API calls
+  const googleLoginInProgressRef = useRef(false);
+  const authCheckInProgressRef = useRef(false);
 
   useEffect(() => {
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
+    // Prevent duplicate auth checks
+    if (authCheckInProgressRef.current) {
+      return;
+    }
+    authCheckInProgressRef.current = true;
+    
     try {
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
@@ -29,6 +39,7 @@ export const AuthProvider = ({ children }) => {
       if (!token || !storedUser) {
         setIsAuthenticated(false);
         setLoading(false);
+        authCheckInProgressRef.current = false;
         return;
       }
       
@@ -47,32 +58,27 @@ export const AuthProvider = ({ children }) => {
       const status = error.response?.status;
       const errorType = error.response?.data?.error;
       
-      // Handle specific error cases
       if (status === 401) {
-        // Truly unauthorized - clear auth
         clearAuth();
       } else if (status === 403 && errorType === 'password_reset_required') {
-        // Check if this is a Google user (they shouldn't get this error)
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
             if (userData.is_google_user || userData.signup_method === 'google') {
-              // Google user - they're fine, middleware bug
               console.log('Google user detected - allowing through');
               setUser(userData);
               setIsAuthenticated(true);
               setLoading(false);
+              authCheckInProgressRef.current = false;
               return;
             }
           } catch (e) {
             console.error('Error parsing stored user:', e);
           }
         }
-        // Non-Google user with password issue
         clearAuth();
       } else {
-        // Other errors - try to use cached data
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
           try {
@@ -87,6 +93,7 @@ export const AuthProvider = ({ children }) => {
       }
     } finally {
       setLoading(false);
+      authCheckInProgressRef.current = false;
     }
   };
 
@@ -99,7 +106,6 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
-  // ✅ LOGIN
   const login = async (credentials) => {
     try {
       const response = await authAPI.login(credentials);
@@ -134,7 +140,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ REGISTER
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
@@ -175,10 +180,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ GOOGLE LOGIN - THIS IS THE CRITICAL ONE
+  // ✅ FIXED: Prevent duplicate Google login calls
   const googleLogin = async (code) => {
+    // Prevent duplicate calls
+    if (googleLoginInProgressRef.current) {
+      console.log('⚠️ Google login already in progress, skipping duplicate call');
+      return { success: false, error: 'Login already in progress' };
+    }
+    
+    googleLoginInProgressRef.current = true;
+    
     try {
-      console.log('🔐 AuthContext: Calling googleLogin with code');
+      console.log('🔐 AuthContext: Calling googleLogin API');
       const response = await authAPI.googleLogin(code);
       
       if (response.data.success) {
@@ -202,10 +215,14 @@ export const AuthProvider = ({ children }) => {
         success: false, 
         error: error.response?.data?.error || 'Google login failed' 
       };
+    } finally {
+      // Reset after a short delay to allow for legitimate retries
+      setTimeout(() => {
+        googleLoginInProgressRef.current = false;
+      }, 2000);
     }
   };
 
-  // ✅ VERIFY EMAIL
   const verifyEmail = async (token) => {
     try {
       const response = await authAPI.verifyEmail(token);
@@ -242,7 +259,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ RESEND VERIFICATION
   const resendVerification = async (email) => {
     try {
       const response = await authAPI.resendVerification(email);
@@ -259,7 +275,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ LOGOUT
   const logout = async () => {
     try {
       await authAPI.logout();
@@ -270,14 +285,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ CONTEXT VALUE - ALL FUNCTIONS MUST BE HERE
   const value = {
     user,
     loading,
     isAuthenticated,
     login,
     register,
-    googleLogin,        // ✅ CRITICAL - Must be included
+    googleLogin,
     verifyEmail,
     resendVerification,
     logout,

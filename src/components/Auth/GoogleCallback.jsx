@@ -1,26 +1,44 @@
 // src/components/Auth/GoogleCallback.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const GoogleCallback = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { googleLogin } = useAuth();
   const [status, setStatus] = useState('processing');
   const [error, setError] = useState('');
+  
+  // ✅ CRITICAL: Prevent duplicate calls
+  const isProcessingRef = useRef(false);
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // ✅ Prevent duplicate processing (React StrictMode, re-renders, etc.)
+      if (isProcessingRef.current || hasProcessedRef.current) {
+        console.log('⚠️ Already processing or processed, skipping...');
+        return;
+      }
+      
+      // Mark as processing
+      isProcessingRef.current = true;
+      
       try {
         // Get the authorization code from URL
         const code = searchParams.get('code');
         const errorParam = searchParams.get('error');
 
+        // ✅ Immediately clear the URL parameters to prevent reuse
+        if (code || errorParam) {
+          setSearchParams({}, { replace: true });
+        }
+
         // Check for OAuth errors
         if (errorParam) {
-          console.error('Google OAuth error:', errorParam);
+          console.error('❌ Google OAuth error:', errorParam);
           setStatus('error');
           setError('Google authentication was cancelled or failed');
           toast.error('Google authentication cancelled');
@@ -30,7 +48,7 @@ const GoogleCallback = () => {
 
         // Check if code exists
         if (!code) {
-          console.error('No authorization code received');
+          console.error('❌ No authorization code received');
           setStatus('error');
           setError('No authorization code received from Google');
           toast.error('Authentication failed - no code received');
@@ -38,11 +56,11 @@ const GoogleCallback = () => {
           return;
         }
 
-        console.log('📧 Google callback - processing code...');
+        console.log('📧 Google callback - processing code (first 20 chars):', code.substring(0, 20) + '...');
 
         // Check if googleLogin function exists
         if (typeof googleLogin !== 'function') {
-          console.error('googleLogin is not a function:', googleLogin);
+          console.error('❌ googleLogin is not a function:', googleLogin);
           setStatus('error');
           setError('Authentication system error');
           toast.error('Authentication system error');
@@ -50,36 +68,44 @@ const GoogleCallback = () => {
           return;
         }
 
-        // Call the googleLogin function from AuthContext
+        // ✅ Call the API only ONCE
+        console.log('🔐 Calling googleLogin API...');
         const result = await googleLogin(code);
+        
+        // Mark as processed to prevent any future calls
+        hasProcessedRef.current = true;
 
         if (result.success) {
-          console.log('✅ Google login successful');
+          console.log('✅ Google login successful!');
           setStatus('success');
           toast.success('Welcome to DropVault!');
           
-          // Small delay before redirect
+          // Redirect to dashboard
           setTimeout(() => {
-            navigate('/dashboard');
+            navigate('/dashboard', { replace: true });
           }, 500);
         } else {
-          console.error('Google login failed:', result.error);
+          console.error('❌ Google login failed:', result.error);
           setStatus('error');
           setError(result.error || 'Authentication failed');
           toast.error(result.error || 'Google login failed');
           setTimeout(() => navigate('/login'), 2000);
         }
       } catch (err) {
-        console.error('Google callback error:', err);
+        console.error('❌ Google callback error:', err);
         setStatus('error');
         setError(err.message || 'An unexpected error occurred');
         toast.error('Authentication failed. Please try again.');
         setTimeout(() => navigate('/login'), 2000);
+      } finally {
+        isProcessingRef.current = false;
       }
     };
 
     handleCallback();
-  }, [searchParams, googleLogin, navigate]);
+    
+    // ✅ Empty dependency array - only run once on mount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="google-callback-page">
