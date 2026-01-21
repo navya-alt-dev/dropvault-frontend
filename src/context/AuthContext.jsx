@@ -59,47 +59,39 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('📝 Registering user:', userData.email);
       
-      const response = await fetch(`${API_URL}/api/signup/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Check if verification is required
-        if (data.requires_verification) {
-          console.log('📧 Verification email sent');
-          return { 
-            success: true, 
+      const response = await authAPI.register(userData);
+      
+      console.log('📝 Registration response:', response.data);
+      
+      if (response.data.success) {
+        if (response.data.requires_verification) {
+          // Email verification required
+          return {
+            success: true,
             requires_verification: true,
-            message: data.message,
-            email: userData.email
+            email: userData.email,
+            message: response.data.message
+          };
+        } else if (response.data.token) {
+          // Direct login (Google OAuth)
+          setUser(response.data.user);
+          setIsAuthenticated(true);
+          return {
+            success: true,
+            requires_verification: false
           };
         }
-        
-        // Direct login (shouldn't happen for email signup)
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: data.error || 'Registration failed',
-          requires_verification: data.requires_verification
-        };
       }
+      
+      return {
+        success: false,
+        error: response.data.error || 'Registration failed'
+      };
     } catch (error) {
-      console.error('Register error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
+      console.error('❌ Registration error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Registration failed'
       };
     }
   };
@@ -241,31 +233,16 @@ export const AuthProvider = ({ children }) => {
   const resendVerification = async (email) => {
     try {
       console.log('📧 Resending verification to:', email);
-      
-      const response = await fetch(`${API_URL}/api/resend-verification/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      return { 
-        success: data.success, 
-        message: data.message,
-        error: data.error 
-      };
+      const response = await authAPI.resendVerification(email);
+      return response.data;
     } catch (error) {
-      console.error('Resend verification error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
+      console.error('❌ Resend verification error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to resend verification email'
       };
     }
   };
-
   // ==================== LOGOUT ====================
   const handleLogout = () => {
     setUser(null);
@@ -323,7 +300,16 @@ export const AuthProvider = ({ children }) => {
   });
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      loading,
+      login,
+      register,
+      logout,
+      checkAuth,
+      resendVerification,
+    }}>
       {children}
     </AuthContext.Provider>
   );

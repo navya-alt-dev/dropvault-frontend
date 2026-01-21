@@ -117,8 +117,8 @@ api.interceptors.response.use(
 // ==================== AUTH API ====================
 export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   login: async (credentials) => {
-    console.log('🔐 Attempting login to:', `${API_BASE_URL}/login/`);
-    const response = await api.post('/login/', credentials);
+    console.log('🔐 Attempting login');
+    const response = await api.post('/api/login/', credentials);
     
     if (response.data.success) {
       const { token, sessionid } = response.data;
@@ -131,8 +131,8 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   },
   
   register: async (userData) => {
-    console.log('📝 Attempting registration to:', `${API_BASE_URL}/signup/`);
-    const response = await api.post('/signup/', userData);
+    console.log('📝 Attempting registration');
+    const response = await api.post('/api/signup/', userData);
     
     if (response.data.success) {
       const { token, sessionid } = response.data;
@@ -144,8 +144,8 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   },
   
   googleLogin: async (code) => {
-    console.log('🔐 Google OAuth to:', `${API_BASE_URL}/auth/google/`);
-    const response = await api.post('/auth/google/', { code });
+    console.log('🔐 Google OAuth');
+    const response = await api.post('/api/auth/google/', { code });
     
     if (response.data.success) {
       const { token, sessionid } = response.data;
@@ -159,7 +159,7 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   logout: async () => {
     console.log('🚪 Logging out');
     try {
-      await api.post('/logout/');
+      await api.post('/api/logout/');
     } catch (e) {
       console.log('Logout API call failed, clearing local storage anyway');
     }
@@ -169,26 +169,36 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   
   getProfile: () => {
     console.log('👤 Getting profile');
-    return api.get('/user/');
+    return api.get('/api/user/');
   },
   
   checkAuth: () => {
     console.log('🔍 Checking auth status');
-    return api.get('/auth/check/');
+    return api.get('/api/auth/check/');
+  },
+  
+  // ✅ ADD THESE:
+  verifyEmail: (token) => {
+    console.log('📧 Verifying email token');
+    return api.post('/api/verify-email-token/', { token });
+  },
+  
+  resendVerification: (email) => {
+    console.log('📧 Resending verification');
+    return api.post('/api/resend-verification/', { email });
   },
 };
 
 // ==================== FILE API ====================
-
 export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
   getAllFiles: () => {
     console.log('📁 Getting all files');
-    return api.get('/list/');
+    return api.get('/api/list/');
   },
   
   uploadFile: (formData, onUploadProgress) => {
     console.log('📤 Uploading file');
-    return api.post('/upload/', formData, {
+    return api.post('/api/upload/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     });
@@ -196,48 +206,47 @@ export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
   
   deleteFile: (fileId) => {
     console.log('🗑️ Deleting file:', fileId);
-    return api.delete(`/delete/${fileId}/`);
+    return api.delete(`/api/delete/${fileId}/`);
   },
   
   getTrash: () => {
     console.log('🗑️ Getting trash');
-    return api.get('/trash/');
+    return api.get('/api/trash/');
   },
   
   restoreFile: (fileId) => {
     console.log('♻️ Restoring file:', fileId);
-    return api.post(`/restore/${fileId}/`);
+    return api.post(`/api/restore/${fileId}/`);
   },
   
   permanentDelete: (fileId) => {
     console.log('🗑️ Permanently deleting file:', fileId);
-    return api.delete(`/trash/permanent/${fileId}/`);
+    return api.delete(`/api/trash/permanent/${fileId}/`);
   },
   
-
   emptyTrash: () => {
     console.log('🗑️ Emptying trash');
-    return api.delete('/trash/empty/');
+    return api.delete('/api/trash/empty/');
   },
   
   shareFile: (fileId, data) => {
     console.log('🔗 Creating share link:', fileId);
-    return api.post(`/share/${fileId}/`, data);
+    return api.post(`/api/share/${fileId}/`, data);
   },
   
   shareViaEmail: (fileId, data) => {
     console.log('📧 Sharing via email:', fileId);
-    return api.post(`/share/${fileId}/email/`, data);
+    return api.post(`/api/share/${fileId}/email/`, data);
   },
   
   getSharedFiles: () => {
     console.log('🔗 Getting shared files');
-    return api.get('/shared/');
+    return api.get('/api/shared/');
   },
   
   downloadFile: (fileId) => {
     console.log('📥 Downloading file:', fileId);
-    return api.get(`/download/${fileId}/`, { responseType: 'blob' });
+    return api.get(`/api/download/${fileId}/`, { responseType: 'blob' });
   },
 };
 
@@ -245,15 +254,12 @@ export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
 export const dashboardAPI = FINAL_USE_MOCK ? mockDashboardAPI : {
   getStats: () => {
     console.log('📊 Getting dashboard stats');
-    return api.get('/dashboard/');
+    return api.get('/api/dashboard/');
   },
 };
 
-
-
 // ==================== NOTIFICATION API ====================
 export const notificationAPI = FINAL_USE_MOCK ? {
-  // Mock implementation for development
   getAll: () => Promise.resolve({ 
     data: { 
       success: true, 
@@ -267,22 +273,22 @@ export const notificationAPI = FINAL_USE_MOCK ? {
 } : {
   getAll: () => {
     console.log('🔔 Getting notifications');
-    return api.get('/notifications/');
+    return api.get('/api/notifications/');
   },
   
   markAsRead: (notificationId) => {
     console.log('🔔 Marking notification as read:', notificationId);
-    return api.post(`/notifications/${notificationId}/read/`);
+    return api.post(`/api/notifications/${notificationId}/read/`);
   },
   
   markAllAsRead: () => {
     console.log('🔔 Marking all notifications as read');
-    return api.post('/notifications/read-all/');
+    return api.post('/api/notifications/read-all/');
   },
   
   delete: (notificationId) => {
     console.log('🔔 Deleting notification:', notificationId);
-    return api.delete(`/notifications/${notificationId}/delete/`);
+    return api.delete(`/api/notifications/${notificationId}/delete/`);
   },
 };
 
@@ -290,27 +296,26 @@ export const notificationAPI = FINAL_USE_MOCK ? {
 export const settingsAPI = FINAL_USE_MOCK ? mockSettingsAPI : {
   updateProfile: (data) => {
     console.log('👤 Updating profile');
-    return api.put('/user/profile/', data);
+    return api.put('/api/user/profile/', data);
   },
   updatePassword: (data) => {
     console.log('🔒 Updating password');
-    return api.put('/user/password/', data);
+    return api.put('/api/user/password/', data);
   },
   getPreferences: () => {
     console.log('⚙️ Getting preferences');
-    return api.get('/user/preferences/');
+    return api.get('/api/user/preferences/');
   },
   updatePreferences: (data) => {
     console.log('⚙️ Updating preferences');
-    return api.put('/user/preferences/', data);
+    return api.put('/api/user/preferences/', data);
   },
 };
-
 
 export const uploadFile = async (formData, onProgress) => {
   try {
     const response = await api.post('/api/upload/', formData, {
-      timeout: 600000,  // ✅ 10 minutes for uploads
+      timeout: 600000,
       headers: {
         'Content-Type': 'multipart/form-data',
       },
