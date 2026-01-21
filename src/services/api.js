@@ -1,31 +1,11 @@
-// src/services/api.js
+// src/services/api.js - FIXED VERSION
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { API_BASE_URL } from '../utils/constants';
 
-import {
-  mockAuthAPI,
-  mockFileAPI,
-  mockDashboardAPI,
-  mockSettingsAPI
-} from './mockApi';
+// ==================== API BASE URL ====================
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
 
-// ==================== ENVIRONMENT CHECK ====================
-const isDevelopment = 
-  window.location.hostname === 'localhost' || 
-  window.location.hostname === '127.0.0.1';
-
-const FORCE_REAL_API = process.env.NODE_ENV === 'production' || 
-                        window.location.hostname.includes('onrender.com');
-
-const FINAL_USE_MOCK = FORCE_REAL_API ? false : isDevelopment;
-
-console.log('🌍 Environment Check:');
-console.log('  - Hostname:', window.location.hostname);
-console.log('  - Is Development:', isDevelopment);
-console.log('  - Force Real API:', FORCE_REAL_API);
-console.log('  - Using Mock API:', FINAL_USE_MOCK);
-console.log('  - API Base URL:', API_BASE_URL);
+console.log('🌍 API Base URL:', API_BASE_URL);
 
 // ==================== AXIOS INSTANCE ====================
 const api = axios.create({
@@ -37,35 +17,26 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// ==================== SINGLE REQUEST INTERCEPTOR (FIXED) ====================
+// ==================== REQUEST INTERCEPTOR ====================
 api.interceptors.request.use(
   (config) => {
-    // Get stored credentials
     const token = localStorage.getItem('token');
-    const sessionId = localStorage.getItem('sessionid');
     
-    // Add Authorization header if we have a valid token
     if (token && token !== 'session-based-auth' && token !== 'session-based') {
       config.headers.Authorization = `Token ${token}`;
-    }
-    
-    // Add session ID as backup (now allowed in CORS)
-    if (sessionId) {
-      config.headers['X-Session-ID'] = sessionId;
     }
     
     console.log('📤 API Request:', {
       method: config.method?.toUpperCase(),
       url: config.url,
       fullURL: `${config.baseURL}${config.url}`,
-      hasToken: !!token && token !== 'session-based',
-      hasSessionId: !!sessionId
+      hasToken: !!token && token !== 'session-based'
     });
     
     return config;
   },
   (error) => {
-    console.error('❌ Request interceptor error:', error);
+    console.error('❌ Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -87,29 +58,15 @@ api.interceptors.response.use(
       message: error.response?.data?.error || error.message
     });
     
-    // Handle 401 Unauthorized
     if (error.response?.status === 401) {
-      console.log('🔒 Unauthorized - clearing auth');
       localStorage.removeItem('token');
       localStorage.removeItem('sessionid');
       localStorage.removeItem('user');
       
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
+      if (!window.location.pathname.includes('/login') && 
+          !window.location.pathname.includes('/signup') &&
+          !window.location.pathname.includes('/verify')) {
         window.location.href = '/login';
-      }
-    }
-    
-    // Handle 403 - Email verification required
-    if (error.response?.status === 403) {
-      const data = error.response.data;
-      if (data?.requires_verification) {
-        console.log('📧 Email verification required');
-        // Store email for verification page
-        if (data.email) {
-          localStorage.setItem('pending_verification_email', data.email);
-        }
-        window.location.href = '/verify-pending';
       }
     }
     
@@ -118,44 +75,33 @@ api.interceptors.response.use(
 );
 
 // ==================== AUTH API ====================
-export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
+export const authAPI = {
+  // ✅ FIXED: Added /api/ prefix
   login: async (credentials) => {
-    console.log('🔐 Attempting login to:', `${API_BASE_URL}/login/`);
-    const response = await api.post('/login/', credentials);
+    console.log('🔐 Attempting login');
+    const response = await api.post('/api/login/', credentials);
     
     if (response.data.success) {
       const { token, sessionid, user } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
       if (user) localStorage.setItem('user', JSON.stringify(user));
-      console.log('✅ Login successful, stored auth tokens');
     }
     
     return response;
   },
   
+  // ✅ FIXED: Added /api/ prefix
   register: async (userData) => {
-    console.log('📝 Attempting registration to:', `${API_BASE_URL}/signup/`);
-    const response = await api.post('/signup/', userData);
-    
-    // Don't store tokens yet - wait for email verification
-    if (response.data.requires_verification) {
-      console.log('📧 Registration successful - verification required');
-      localStorage.setItem('pending_verification_email', userData.email);
-    } else if (response.data.success && response.data.token) {
-      // Only store if no verification required (shouldn't happen for email signup)
-      const { token, sessionid, user } = response.data;
-      if (token) localStorage.setItem('token', token);
-      if (sessionid) localStorage.setItem('sessionid', sessionid);
-      if (user) localStorage.setItem('user', JSON.stringify(user));
-    }
-    
+    console.log('📝 Attempting registration');
+    const response = await api.post('/api/signup/', userData);
     return response;
   },
   
+  // ✅ FIXED: Changed from /auth/google/ to /api/auth/google/
   googleLogin: async (code) => {
-    console.log('🔐 Google OAuth with code');
-    const response = await api.post('/auth/google/', { code });
+    console.log('🔐 Google OAuth - calling /api/auth/google/');
+    const response = await api.post('/api/auth/google/', { code });
     
     if (response.data.success) {
       const { token, sessionid, user } = response.data;
@@ -166,154 +112,147 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
     
     return response;
   },
-
+  
+  // ✅ FIXED: Added /api/ prefix
   verifyEmail: async (token) => {
-    console.log('✉️ Verifying email with token');
-    return api.get(`/verify-email-token/?token=${token}`);
+    console.log('✉️ Verifying email');
+    return api.get(`/api/verify-email-token/?token=${token}`);
   },
-
+  
+  // ✅ FIXED: Added /api/ prefix
   resendVerification: async (email) => {
     console.log('📧 Resending verification to:', email);
-    return api.post('/resend-verification/', { email });
+    return api.post('/api/resend-verification/', { email });
   },
-
+  
+  // ✅ FIXED: Added /api/ prefix
   logout: async () => {
     console.log('🚪 Logging out');
     try {
-      await api.post('/logout/');
+      await api.post('/api/logout/');
     } catch (e) {
-      console.log('Logout API call failed, clearing local storage anyway');
+      console.log('Logout API failed, clearing local storage');
     }
     localStorage.removeItem('token');
     localStorage.removeItem('sessionid');
     localStorage.removeItem('user');
-    localStorage.removeItem('pending_verification_email');
   },
   
-  getProfile: () => {
-    console.log('👤 Getting profile');
-    return api.get('/user/');
+  // ✅ FIXED: Added /api/ prefix
+  checkAuth: async () => {
+    console.log('🔍 Checking auth');
+    return api.get('/api/auth/check/');
   },
   
-  checkAuth: () => {
-    console.log('🔍 Checking auth status');
-    return api.get('/auth/check/');
+  // ✅ FIXED: Added /api/ prefix
+  getProfile: async () => {
+    return api.get('/api/user/');
   },
   
-  forgotPassword: (email) => {
-    return api.post('/forgot-password/', { email });
+  // ✅ FIXED: Added /api/ prefix
+  forgotPassword: async (email) => {
+    return api.post('/api/forgot-password/', { email });
   },
   
-  resetPassword: (token, password) => {
-    return api.post('/reset-password/', { token, password });
-  },
-  
-  setPassword: (password, confirmPassword) => {
-    return api.post('/set-password/', { password, confirm_password: confirmPassword });
+  // ✅ FIXED: Added /api/ prefix
+  resetPassword: async (token, password) => {
+    return api.post('/api/reset-password/', { token, password });
   },
 };
 
 // ==================== FILE API ====================
-export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
+export const fileAPI = {
   getAllFiles: () => {
     console.log('📁 Getting all files');
-    return api.get('/list/');
+    return api.get('/api/list/');
   },
   
   uploadFile: (formData, onUploadProgress) => {
     console.log('📤 Uploading file');
-    return api.post('/upload/', formData, {
+    return api.post('/api/upload/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000, // 5 minutes for uploads
+      timeout: 300000,
       onUploadProgress,
     });
   },
   
   deleteFile: (fileId) => {
     console.log('🗑️ Deleting file:', fileId);
-    return api.delete(`/delete/${fileId}/`);
+    return api.delete(`/api/delete/${fileId}/`);
   },
   
   getTrash: () => {
     console.log('🗑️ Getting trash');
-    return api.get('/trash/');
+    return api.get('/api/trash/');
   },
   
   restoreFile: (fileId) => {
     console.log('♻️ Restoring file:', fileId);
-    return api.post(`/restore/${fileId}/`);
+    return api.post(`/api/restore/${fileId}/`);
   },
   
   permanentDelete: (fileId) => {
-    console.log('🔥 Permanently deleting:', fileId);
-    return api.delete(`/trash/permanent/${fileId}/`);
+    return api.delete(`/api/trash/permanent/${fileId}/`);
   },
   
   emptyTrash: () => {
-    console.log('🗑️ Emptying trash');
-    return api.delete('/trash/empty/');
+    return api.delete('/api/trash/empty/');
   },
   
   shareFile: (fileId, data) => {
-    console.log('🔗 Sharing file:', fileId);
-    return api.post(`/share/${fileId}/`, data);
+    return api.post(`/api/share/${fileId}/`, data);
   },
   
   shareViaEmail: (fileId, data) => {
-    console.log('📧 Sharing via email:', fileId);
-    return api.post(`/share/${fileId}/email/`, data);
+    return api.post(`/api/share/${fileId}/email/`, data);
   },
   
   getSharedFiles: () => {
-    console.log('🔗 Getting shared files');
-    return api.get('/shared/');
+    return api.get('/api/shared/');
   },
   
   downloadFile: async (fileId) => {
-    console.log('⬇️ Downloading file:', fileId);
-    return api.get(`/download/${fileId}/`, { responseType: 'blob' });
+    return api.get(`/api/download/${fileId}/`, { responseType: 'blob' });
   },
 };
 
 // ==================== DASHBOARD API ====================
-export const dashboardAPI = FINAL_USE_MOCK ? mockDashboardAPI : {
+export const dashboardAPI = {
   getStats: () => {
     console.log('📊 Getting dashboard stats');
-    return api.get('/dashboard/');
+    return api.get('/api/dashboard/');
   },
   
   getStorage: () => {
-    console.log('💾 Getting storage info');
-    return api.get('/user/storage/');
+    return api.get('/api/user/storage/');
   },
 };
 
 // ==================== NOTIFICATIONS API ====================
 export const notificationsAPI = {
   getAll: () => {
-    console.log('🔔 Getting notifications');
-    return api.get('/notifications/');
+    return api.get('/api/notifications/');
   },
   
   markAsRead: (notificationId) => {
-    return api.post(`/notifications/${notificationId}/read/`);
+    return api.post(`/api/notifications/${notificationId}/read/`);
   },
   
   markAllAsRead: () => {
-    return api.post('/notifications/read-all/');
+    return api.post('/api/notifications/read-all/');
   },
   
   delete: (notificationId) => {
-    return api.delete(`/notifications/${notificationId}/delete/`);
+    return api.delete(`/api/notifications/${notificationId}/delete/`);
   },
 };
 
 // ==================== SETTINGS API ====================
-export const settingsAPI = FINAL_USE_MOCK ? mockSettingsAPI : {
-  updateProfile: (data) => api.put('/user/profile/', data),
-  updatePassword: (data) => api.put('/user/password/', data),
-  getPreferences: () => api.get('/user/preferences/'),
-  updatePreferences: (data) => api.put('/user/preferences/', data),
+export const settingsAPI = {
+  updateProfile: (data) => api.put('/api/user/profile/', data),
+  updatePassword: (data) => api.put('/api/user/password/', data),
+  getPreferences: () => api.get('/api/user/preferences/'),
+  updatePreferences: (data) => api.put('/api/user/preferences/', data),
 };
 
 export default api;
