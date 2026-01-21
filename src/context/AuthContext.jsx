@@ -1,56 +1,108 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { authAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext(null);
 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check for existing auth on mount
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken) {
-      setToken(storedToken);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error('Error parsing stored user:', e);
-        }
-      }
-      // Verify token is still valid
-      verifyAuth(storedToken);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const verifyAuth = async (authToken) => {
+  // ==================== CHECK AUTH ====================
+  const checkAuth = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/check/`, {
-        headers: {
-          'Authorization': `Token ${authToken}`,
-        },
-      });
+      const token = localStorage.getItem('token');
       
-      const data = await response.json();
+      if (!token || token === 'session-based' || token === 'session-based-auth') {
+        setIsAuthenticated(false);
+        setUser(null);
+        setLoading(false);
+        return false;
+      }
+
+      console.log('🔍 Checking authentication...');
+      const response = await authAPI.checkAuth();
       
-      if (data.authenticated) {
-        setUser(data.user);
-        localStorage.setItem('user', JSON.stringify(data.user));
+      if (response.data.authenticated) {
+        console.log('✅ User authenticated:', response.data.user.email);
+        setUser(response.data.user);
+        setIsAuthenticated(true);
+        setLoading(false);
+        return true;
       } else {
-        handleLogout();
+        console.log('❌ Not authenticated');
+        setIsAuthenticated(false);
+        setUser(null);
+        setLoading(false);
+        return false;
       }
     } catch (error) {
-      console.error('Auth verification error:', error);
-    } finally {
+      console.error('❌ Auth check failed:', error);
+      setIsAuthenticated(false);
+      setUser(null);
       setLoading(false);
+      
+      // Clear invalid tokens
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+      
+      return false;
+    }
+  };
+
+  // ==================== LOGIN ====================
+  const login = async (credentials) => {
+    try {
+      console.log('🔐 Attempting login...');
+      const response = await authAPI.login(credentials);
+      
+      console.log('Login response:', response.data);
+      
+      if (response.data.success) {
+        const { token, user: userData } = response.data;
+        
+        // Store auth data
+        if (token) {
+          localStorage.setItem('token', token);
+        }
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+          setUser(userData);
+        }
+        
+        setIsAuthenticated(true);
+        
+        console.log('✅ Login successful');
+        return { success: true };
+      } else {
+        console.log('❌ Login failed:', response.data.error);
+        return {
+          success: false,
+          error: response.data.error || 'Login failed'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      
+      const errorMessage = error.response?.data?.error || 'Login failed. Please try again.';
+      
+      return {
+        success: false,
+        error: errorMessage,
+        requires_verification: error.response?.data?.requires_verification
+      };
     }
   };
 
@@ -70,12 +122,23 @@ export const AuthProvider = ({ children }) => {
             success: true,
             requires_verification: true,
             email: userData.email,
-            message: response.data.message
+            message: response.data.message,
+            email_sent: response.data.email_sent
           };
         } else if (response.data.token) {
           // Direct login (Google OAuth)
-          setUser(response.data.user);
+          const { token, user: newUser } = response.data;
+          
+          if (token) {
+            localStorage.setItem('token', token);
+          }
+          if (newUser) {
+            localStorage.setItem('user', JSON.stringify(newUser));
+            setUser(newUser);
+          }
+          
           setIsAuthenticated(true);
+          
           return {
             success: true,
             requires_verification: false
@@ -96,136 +159,57 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ==================== LOGIN ====================
-  const login = async (credentials) => {
-    try {
-      console.log('🔐 Logging in:', credentials.email);
-      
-      const response = await fetch(`${API_URL}/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Successful login
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.sessionid) {
-          localStorage.setItem('sessionid', data.sessionid);
-        }
-        return { success: true };
-      } else if (response.status === 403 && data.requires_verification) {
-        // Email not verified
-        return { 
-          success: false, 
-          requires_verification: true,
-          email: data.email,
-          error: data.error || 'Please verify your email first'
-        };
-      } else {
-        return { 
-          success: false, 
-          error: data.error || 'Login failed' 
-        };
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
-      };
-    }
-  };
-
-  // ==================== GOOGLE LOGIN ==================== 
-  // ✅ FIXED: Named as 'googleLogin' to match GoogleCallback.jsx
+  // ==================== GOOGLE LOGIN ====================
   const googleLogin = async (code) => {
     try {
-      console.log('🔐 Google login with code');
+      console.log('🔐 Google OAuth login...');
+      const response = await authAPI.googleLogin(code);
       
-      const response = await fetch(`${API_URL}/api/auth/google/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        console.log('✅ Google login successful');
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.sessionid) {
-          localStorage.setItem('sessionid', data.sessionid);
+      if (response.data.success) {
+        const { token, user: userData } = response.data;
+        
+        if (token) {
+          localStorage.setItem('token', token);
         }
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+          setUser(userData);
+        }
+        
+        setIsAuthenticated(true);
+        
+        console.log('✅ Google login successful');
         return { success: true };
       } else {
-        console.error('❌ Google login failed:', data.error);
-        return { 
-          success: false, 
-          error: data.error || 'Google login failed' 
+        return {
+          success: false,
+          error: response.data.error || 'Google login failed'
         };
       }
     } catch (error) {
       console.error('❌ Google login error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Google login failed'
       };
     }
   };
 
-  // ==================== VERIFY EMAIL ====================
-  const verifyEmail = async (verificationToken) => {
+  // ==================== LOGOUT ====================
+  const logout = async () => {
     try {
-      console.log('✉️ Verifying email with token');
-      
-      const response = await fetch(`${API_URL}/api/verify-email-token/?token=${verificationToken}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Email verified, log user in
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (data.sessionid) {
-          localStorage.setItem('sessionid', data.sessionid);
-        }
-        localStorage.removeItem('pendingVerificationEmail');
-        
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: data.error || 'Verification failed',
-          expired: data.expired,
-          email: data.email
-        };
-      }
+      console.log('🚪 Logging out...');
+      await authAPI.logout();
     } catch (error) {
-      console.error('Verify email error:', error);
-      return { 
-        success: false, 
-        error: 'Network error. Please try again.' 
-      };
+      console.error('❌ Logout error:', error);
+    } finally {
+      // Always clear local state
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('sessionid');
+      setUser(null);
+      setIsAuthenticated(false);
+      console.log('✅ Logged out successfully');
     }
   };
 
@@ -243,84 +227,66 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-  // ==================== LOGOUT ====================
-  const handleLogout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('sessionid');
-    localStorage.removeItem('pendingVerificationEmail');
-  };
 
-  const logout = async () => {
+  // ==================== VERIFY EMAIL ====================
+  const verifyEmail = async (token) => {
     try {
-      if (token) {
-        await fetch(`${API_URL}/api/logout/`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${token}`,
-          },
-        });
+      console.log('📧 Verifying email token...');
+      const response = await authAPI.verifyEmail(token);
+      
+      if (response.data.success) {
+        const { token: authToken, user: userData } = response.data;
+        
+        if (authToken) {
+          localStorage.setItem('token', authToken);
+        }
+        if (userData) {
+          localStorage.setItem('user', JSON.stringify(userData));
+          setUser(userData);
+        }
+        
+        setIsAuthenticated(true);
+        
+        return { success: true };
       }
+      
+      return {
+        success: false,
+        error: response.data.error || 'Verification failed'
+      };
     } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      handleLogout();
+      console.error('❌ Email verification error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Verification failed'
+      };
     }
   };
 
-  // Compute isAuthenticated from token and user
-  const isAuthenticated = !!token && !!user;
+  // ==================== INITIAL AUTH CHECK ====================
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-  // ✅ IMPORTANT: All functions must be in the value object
+  // ==================== CONTEXT VALUE ====================
   const value = {
     user,
-    setUser,
-    token,
-    setToken,
-    loading,
     isAuthenticated,
-    // Auth functions
+    loading,
     login,
     register,
-    googleLogin,        // ✅ This is what GoogleCallback uses
-    loginWithGoogle: googleLogin,  // ✅ Alias for backward compatibility
-    verifyEmail,
-    resendVerification,
+    googleLogin,
     logout,
+    checkAuth,
+    resendVerification,
+    verifyEmail,
   };
 
-  // Debug log
-  console.log('🔧 AuthContext loaded:', {
-    hasUser: !!user,
-    hasToken: !!token,
-    isAuthenticated,
-    functions: Object.keys(value).filter(k => typeof value[k] === 'function')
-  });
-
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated,
-      loading,
-      login,
-      register,
-      logout,
-      checkAuth,
-      resendVerification,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
 
 export default AuthContext;

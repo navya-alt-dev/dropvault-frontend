@@ -115,79 +115,64 @@ api.interceptors.response.use(
 );
 
 // ==================== AUTH API ====================
-export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
-  login: async (credentials) => {
-    console.log('🔐 Attempting login');
-    const response = await api.post('/api/login/', credentials);
+
+  export const authAPI = {
+    login: async (credentials) => {
+      const response = await api.post('/api/login/', credentials);
+      if (response.data.success) {
+        const { token, sessionid } = response.data;
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+      }
+      return response;
+    },
     
-    if (response.data.success) {
-      const { token, sessionid } = response.data;
-      if (token) localStorage.setItem('token', token);
-      if (sessionid) localStorage.setItem('sessionid', sessionid);
-      console.log('✅ Stored auth tokens');
-    }
+    register: async (userData) => {
+      const response = await api.post('/api/signup/', userData);
+      if (response.data.success) {
+        const { token, sessionid } = response.data;
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+      }
+      return response;
+    },
     
-    return response;
-  },
-  
-  register: async (userData) => {
-    console.log('📝 Attempting registration');
-    const response = await api.post('/api/signup/', userData);
+    googleLogin: async (code) => {
+      const response = await api.post('/api/auth/google/', { code });
+      if (response.data.success) {
+        const { token, sessionid } = response.data;
+        if (token) localStorage.setItem('token', token);
+        if (sessionid) localStorage.setItem('sessionid', sessionid);
+      }
+      return response;
+    },
     
-    if (response.data.success) {
-      const { token, sessionid } = response.data;
-      if (token) localStorage.setItem('token', token);
-      if (sessionid) localStorage.setItem('sessionid', sessionid);
-    }
+    logout: async () => {
+      try {
+        await api.post('/api/logout/');
+      } catch (e) {
+        console.log('Logout API call failed, clearing local storage anyway');
+      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('sessionid');
+    },
     
-    return response;
-  },
-  
-  googleLogin: async (code) => {
-    console.log('🔐 Google OAuth');
-    const response = await api.post('/api/auth/google/', { code });
+    checkAuth: () => {
+      return api.get('/api/auth/check/');
+    },
     
-    if (response.data.success) {
-      const { token, sessionid } = response.data;
-      if (token) localStorage.setItem('token', token);
-      if (sessionid) localStorage.setItem('sessionid', sessionid);
-    }
+    verifyEmail: (token) => {
+      return api.post('/api/verify-email-token/', { token });
+    },
     
-    return response;
-  },
-  
-  logout: async () => {
-    console.log('🚪 Logging out');
-    try {
-      await api.post('/api/logout/');
-    } catch (e) {
-      console.log('Logout API call failed, clearing local storage anyway');
-    }
-    localStorage.removeItem('token');
-    localStorage.removeItem('sessionid');
-  },
-  
-  getProfile: () => {
-    console.log('👤 Getting profile');
-    return api.get('/api/user/');
-  },
-  
-  checkAuth: () => {
-    console.log('🔍 Checking auth status');
-    return api.get('/api/auth/check/');
-  },
-  
-  // ✅ ADD THESE:
-  verifyEmail: (token) => {
-    console.log('📧 Verifying email token');
-    return api.post('/api/verify-email-token/', { token });
-  },
-  
-  resendVerification: (email) => {
-    console.log('📧 Resending verification');
-    return api.post('/api/resend-verification/', { email });
-  },
-};
+    resendVerification: (email) => {
+      return api.post('/api/resend-verification/', { email });
+    },
+    
+    getProfile: () => {
+      return api.get('/api/user/');
+    },
+  };
 
 // ==================== FILE API ====================
 export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
