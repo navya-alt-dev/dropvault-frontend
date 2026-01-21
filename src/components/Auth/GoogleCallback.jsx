@@ -7,36 +7,34 @@ import toast from 'react-hot-toast';
 const GoogleCallback = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { googleLogin } = useAuth();
+  const auth = useAuth();  // ✅ Get entire auth object
   const [status, setStatus] = useState('processing');
   const [error, setError] = useState('');
   
-  // ✅ CRITICAL: Prevent duplicate calls
+  // Prevent duplicate calls
   const isProcessingRef = useRef(false);
   const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
-      // ✅ Prevent duplicate processing (React StrictMode, re-renders, etc.)
+      // Prevent duplicate processing
       if (isProcessingRef.current || hasProcessedRef.current) {
-        console.log('⚠️ Already processing or processed, skipping...');
+        console.log('⚠️ Already processing or processed, skipping');
         return;
       }
       
-      // Mark as processing
       isProcessingRef.current = true;
       
       try {
-        // Get the authorization code from URL
         const code = searchParams.get('code');
         const errorParam = searchParams.get('error');
 
-        // ✅ Immediately clear the URL parameters to prevent reuse
+        // Clear URL parameters immediately
         if (code || errorParam) {
           setSearchParams({}, { replace: true });
         }
 
-        // Check for OAuth errors
+        // Handle OAuth errors
         if (errorParam) {
           console.error('❌ Google OAuth error:', errorParam);
           setStatus('error');
@@ -56,23 +54,24 @@ const GoogleCallback = () => {
           return;
         }
 
-        console.log('📧 Google callback - processing code (first 20 chars):', code.substring(0, 20) + '...');
+        console.log('📧 Google callback - processing code');
 
-        // Check if googleLogin function exists
-        if (typeof googleLogin !== 'function') {
-          console.error('❌ googleLogin is not a function:', googleLogin);
+        // ✅ Check for googleLogin function
+        const googleLoginFn = auth.googleLogin || auth.loginWithGoogle;
+        
+        if (typeof googleLoginFn !== 'function') {
+          console.error('❌ googleLogin function not found in auth:', Object.keys(auth));
           setStatus('error');
           setError('Authentication system error');
-          toast.error('Authentication system error');
+          toast.error('Authentication system error. Please try again.');
           setTimeout(() => navigate('/login'), 2000);
           return;
         }
 
-        // ✅ Call the API only ONCE
-        console.log('🔐 Calling googleLogin API...');
-        const result = await googleLogin(code);
+        // Call the API
+        console.log('🔐 Calling Google login API...');
+        const result = await googleLoginFn(code);
         
-        // Mark as processed to prevent any future calls
         hasProcessedRef.current = true;
 
         if (result.success) {
@@ -80,7 +79,6 @@ const GoogleCallback = () => {
           setStatus('success');
           toast.success('Welcome to DropVault!');
           
-          // Redirect to dashboard
           setTimeout(() => {
             navigate('/dashboard', { replace: true });
           }, 500);
@@ -102,10 +100,10 @@ const GoogleCallback = () => {
       }
     };
 
-    handleCallback();
-    
-    // ✅ Empty dependency array - only run once on mount
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Small delay to ensure context is ready
+    const timer = setTimeout(handleCallback, 100);
+    return () => clearTimeout(timer);
+  }, [auth, searchParams, setSearchParams, navigate]);
 
   return (
     <div className="google-callback-page">
@@ -199,7 +197,6 @@ const GoogleCallback = () => {
       `}</style>
 
       <div className="callback-container">
-        {/* Processing State */}
         {status === 'processing' && (
           <>
             <div className="callback-icon processing">
@@ -210,7 +207,6 @@ const GoogleCallback = () => {
           </>
         )}
 
-        {/* Success State */}
         {status === 'success' && (
           <>
             <div className="callback-icon success">
@@ -223,7 +219,6 @@ const GoogleCallback = () => {
           </>
         )}
 
-        {/* Error State */}
         {status === 'error' && (
           <>
             <div className="callback-icon error">

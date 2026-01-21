@@ -1,7 +1,7 @@
-// src/context/AuthContext.jsx - COMPLETE FIXED FILE
+// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-2.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
 
 const AuthContext = createContext(null);
 
@@ -45,7 +45,6 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
         localStorage.setItem('user', JSON.stringify(data.user));
       } else {
-        // Token invalid - clear auth
         handleLogout();
       }
     } catch (error) {
@@ -55,8 +54,61 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ==================== REGISTER ====================
+  const register = async (userData) => {
+    try {
+      console.log('📝 Registering user:', userData.email);
+      
+      const response = await fetch(`${API_URL}/api/signup/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Check if verification is required
+        if (data.requires_verification) {
+          console.log('📧 Verification email sent');
+          return { 
+            success: true, 
+            requires_verification: true,
+            message: data.message,
+            email: userData.email
+          };
+        }
+        
+        // Direct login (shouldn't happen for email signup)
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        return { success: true };
+      } else {
+        return { 
+          success: false, 
+          error: data.error || 'Registration failed',
+          requires_verification: data.requires_verification
+        };
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      return { 
+        success: false, 
+        error: 'Network error. Please try again.' 
+      };
+    }
+  };
+
+  // ==================== LOGIN ====================
   const login = async (credentials) => {
     try {
+      console.log('🔐 Logging in:', credentials.email);
+      
       const response = await fetch(`${API_URL}/api/login/`, {
         method: 'POST',
         headers: {
@@ -86,7 +138,6 @@ export const AuthProvider = ({ children }) => {
           error: data.error || 'Please verify your email first'
         };
       } else {
-        // Other errors
         return { 
           success: false, 
           error: data.error || 'Login failed' 
@@ -101,8 +152,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (code) => {
+  // ==================== GOOGLE LOGIN ==================== 
+  // ✅ FIXED: Named as 'googleLogin' to match GoogleCallback.jsx
+  const googleLogin = async (code) => {
     try {
+      console.log('🔐 Google login with code');
+      
       const response = await fetch(`${API_URL}/api/auth/google/`, {
         method: 'POST',
         headers: {
@@ -114,6 +169,7 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        console.log('✅ Google login successful');
         setToken(data.token);
         setUser(data.user);
         localStorage.setItem('token', data.token);
@@ -123,13 +179,14 @@ export const AuthProvider = ({ children }) => {
         }
         return { success: true };
       } else {
+        console.error('❌ Google login failed:', data.error);
         return { 
           success: false, 
           error: data.error || 'Google login failed' 
         };
       }
     } catch (error) {
-      console.error('Google login error:', error);
+      console.error('❌ Google login error:', error);
       return { 
         success: false, 
         error: 'Network error. Please try again.' 
@@ -137,6 +194,79 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ==================== VERIFY EMAIL ====================
+  const verifyEmail = async (verificationToken) => {
+    try {
+      console.log('✉️ Verifying email with token');
+      
+      const response = await fetch(`${API_URL}/api/verify-email-token/?token=${verificationToken}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Email verified, log user in
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        if (data.sessionid) {
+          localStorage.setItem('sessionid', data.sessionid);
+        }
+        localStorage.removeItem('pendingVerificationEmail');
+        
+        return { success: true };
+      } else {
+        return { 
+          success: false, 
+          error: data.error || 'Verification failed',
+          expired: data.expired,
+          email: data.email
+        };
+      }
+    } catch (error) {
+      console.error('Verify email error:', error);
+      return { 
+        success: false, 
+        error: 'Network error. Please try again.' 
+      };
+    }
+  };
+
+  // ==================== RESEND VERIFICATION ====================
+  const resendVerification = async (email) => {
+    try {
+      console.log('📧 Resending verification to:', email);
+      
+      const response = await fetch(`${API_URL}/api/resend-verification/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      return { 
+        success: data.success, 
+        message: data.message,
+        error: data.error 
+      };
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      return { 
+        success: false, 
+        error: 'Network error. Please try again.' 
+      };
+    }
+  };
+
+  // ==================== LOGOUT ====================
   const handleLogout = () => {
     setUser(null);
     setToken(null);
@@ -166,17 +296,31 @@ export const AuthProvider = ({ children }) => {
   // Compute isAuthenticated from token and user
   const isAuthenticated = !!token && !!user;
 
+  // ✅ IMPORTANT: All functions must be in the value object
   const value = {
     user,
     setUser,
     token,
     setToken,
     loading,
-    login,
-    loginWithGoogle,
-    logout,
     isAuthenticated,
+    // Auth functions
+    login,
+    register,
+    googleLogin,        // ✅ This is what GoogleCallback uses
+    loginWithGoogle: googleLogin,  // ✅ Alias for backward compatibility
+    verifyEmail,
+    resendVerification,
+    logout,
   };
+
+  // Debug log
+  console.log('🔧 AuthContext loaded:', {
+    hasUser: !!user,
+    hasToken: !!token,
+    isAuthenticated,
+    functions: Object.keys(value).filter(k => typeof value[k] === 'function')
+  });
 
   return (
     <AuthContext.Provider value={value}>
@@ -192,6 +336,5 @@ export const useAuth = () => {
   }
   return context;
 };
-
 
 export default AuthContext;

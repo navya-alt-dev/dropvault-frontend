@@ -8,9 +8,9 @@ import '../styles/auth.css';
 const VerifyEmailPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { verifyEmail } = useAuth();
+  const { verifyEmail, resendVerification } = useAuth();
   
-  const [status, setStatus] = useState('verifying'); // verifying, success, error, expired
+  const [status, setStatus] = useState('verifying');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
 
@@ -32,10 +32,8 @@ const VerifyEmailPage = () => {
           setMessage('Your email has been verified successfully!');
           toast.success('Email verified! Redirecting to dashboard...');
           
-          // Clear pending verification email
           localStorage.removeItem('pendingVerificationEmail');
           
-          // Redirect to dashboard after 2 seconds
           setTimeout(() => {
             navigate('/dashboard');
           }, 2000);
@@ -60,18 +58,23 @@ const VerifyEmailPage = () => {
 
   const handleResend = async () => {
     if (!email) {
-      toast.error('Please sign up again to get a new verification email');
-      navigate('/signup');
+      toast.error('Please sign up again');
+      navigate('/register');
       return;
     }
     
-    localStorage.setItem('pendingVerificationEmail', email);
-    navigate('/verify-pending', { state: { email } });
+    const result = await resendVerification(email);
+    if (result.success) {
+      toast.success('New verification email sent!');
+      localStorage.setItem('pendingVerificationEmail', email);
+      navigate('/verify-pending', { state: { email } });
+    } else {
+      toast.error(result.error || 'Failed to resend');
+    }
   };
 
   return (
     <div className="auth-page">
-      {/* Background Effects */}
       <div className="auth-bg">
         <div className="auth-bg-shape auth-bg-shape-1"></div>
         <div className="auth-bg-shape auth-bg-shape-2"></div>
@@ -79,7 +82,6 @@ const VerifyEmailPage = () => {
       </div>
 
       <div className="auth-container">
-        {/* Left Side - Branding */}
         <div className="auth-branding">
           <div className="auth-branding-content">
             <Link to="/" className="auth-logo">
@@ -94,20 +96,12 @@ const VerifyEmailPage = () => {
             <h1 className="auth-branding-title">
               {status === 'success' ? 'Welcome!' : 'Email Verification'}
             </h1>
-            
-            <p className="auth-branding-text">
-              {status === 'success' 
-                ? 'Your account is ready to use.' 
-                : 'Verifying your email address...'}
-            </p>
           </div>
         </div>
 
-        {/* Right Side - Verification Status */}
         <div className="auth-form-section">
           <div className="auth-form-container">
             
-            {/* Verifying State */}
             {status === 'verifying' && (
               <>
                 <div className="verify-icon-container">
@@ -117,12 +111,11 @@ const VerifyEmailPage = () => {
                 </div>
                 <div className="auth-form-header">
                   <h2>Verifying your email...</h2>
-                  <p>Please wait while we verify your email address.</p>
+                  <p>Please wait</p>
                 </div>
               </>
             )}
 
-            {/* Success State */}
             {status === 'success' && (
               <>
                 <div className="verify-icon-container">
@@ -143,7 +136,6 @@ const VerifyEmailPage = () => {
               </>
             )}
 
-            {/* Error State */}
             {status === 'error' && (
               <>
                 <div className="verify-icon-container">
@@ -157,17 +149,12 @@ const VerifyEmailPage = () => {
                   <h2>Verification Failed</h2>
                   <p>{message}</p>
                 </div>
-                <Link to="/signup" className="auth-submit-btn">
+                <Link to="/register" className="auth-submit-btn">
                   Try signing up again
                 </Link>
-                <p className="auth-footer-text">
-                  Already have an account?{' '}
-                  <Link to="/login" className="auth-link">Sign in</Link>
-                </p>
               </>
             )}
 
-            {/* Expired State */}
             {status === 'expired' && (
               <>
                 <div className="verify-icon-container">
@@ -181,19 +168,15 @@ const VerifyEmailPage = () => {
                   <h2>Link Expired</h2>
                   <p>{message}</p>
                 </div>
-                <button
-                  type="button"
-                  className="auth-submit-btn"
-                  onClick={handleResend}
-                >
+                <button className="auth-submit-btn" onClick={handleResend}>
                   Send new verification email
                 </button>
-                <p className="auth-footer-text">
-                  <Link to="/login" className="auth-link">Back to login</Link>
-                </p>
               </>
             )}
 
+            <p className="auth-footer-text">
+              <Link to="/login" className="auth-link">Back to login</Link>
+            </p>
           </div>
         </div>
       </div>

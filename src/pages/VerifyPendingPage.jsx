@@ -1,19 +1,19 @@
 // src/pages/VerifyPendingPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import '../styles/auth.css';
 
 const VerifyPendingPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { resendVerification } = useAuth();
   const [email, setEmail] = useState('');
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
-    // Get email from location state or localStorage
     const stateEmail = location.state?.email;
     const storedEmail = localStorage.getItem('pendingVerificationEmail');
     
@@ -23,13 +23,11 @@ const VerifyPendingPage = () => {
     } else if (storedEmail) {
       setEmail(storedEmail);
     } else {
-      // No email found, redirect to signup
-      navigate('/signup');
+      navigate('/register');
     }
   }, [location, navigate]);
 
   useEffect(() => {
-    // Countdown timer
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
@@ -41,29 +39,22 @@ const VerifyPendingPage = () => {
     
     setResending(true);
     try {
-      const response = await authAPI.resendVerification(email);
-      if (response.data.success) {
-        toast.success('Verification email sent! Check your inbox.');
+      const result = await resendVerification(email);
+      if (result.success) {
+        toast.success('Verification email sent!');
         setCountdown(60);
       } else {
-        toast.error(response.data.error || 'Failed to send email');
+        toast.error(result.error || 'Failed to send email');
       }
     } catch (error) {
-      const message = error.response?.data?.error || 'Failed to send email';
-      toast.error(message);
+      toast.error('Failed to send email');
     } finally {
       setResending(false);
     }
   };
 
-  const handleChangeEmail = () => {
-    localStorage.removeItem('pendingVerificationEmail');
-    navigate('/signup');
-  };
-
   return (
     <div className="auth-page">
-      {/* Background Effects - Same as LoginPage */}
       <div className="auth-bg">
         <div className="auth-bg-shape auth-bg-shape-1"></div>
         <div className="auth-bg-shape auth-bg-shape-2"></div>
@@ -71,7 +62,6 @@ const VerifyPendingPage = () => {
       </div>
 
       <div className="auth-container">
-        {/* Left Side - Branding */}
         <div className="auth-branding">
           <div className="auth-branding-content">
             <Link to="/" className="auth-logo">
@@ -93,10 +83,8 @@ const VerifyPendingPage = () => {
           </div>
         </div>
 
-        {/* Right Side - Verification Content */}
         <div className="auth-form-section">
           <div className="auth-form-container">
-            {/* Email Icon */}
             <div className="verify-icon-container">
               <div className="verify-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -110,7 +98,6 @@ const VerifyPendingPage = () => {
               <p>We sent a verification link to</p>
             </div>
 
-            {/* Email Display */}
             <div className="verify-email-display">
               <span>{email}</span>
             </div>
@@ -120,7 +107,6 @@ const VerifyPendingPage = () => {
               If you don't see it, check your spam folder.
             </p>
 
-            {/* Resend Button */}
             <button
               type="button"
               className="auth-submit-btn"
@@ -135,20 +121,17 @@ const VerifyPendingPage = () => {
               ) : countdown > 0 ? (
                 `Resend in ${countdown}s`
               ) : (
-                <>
-                  <svg className="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Resend verification email
-                </>
+                'Resend verification email'
               )}
             </button>
 
-            {/* Change Email Link */}
             <button
               type="button"
               className="verify-change-email"
-              onClick={handleChangeEmail}
+              onClick={() => {
+                localStorage.removeItem('pendingVerificationEmail');
+                navigate('/register');
+              }}
             >
               Wrong email? Sign up with a different one
             </button>
