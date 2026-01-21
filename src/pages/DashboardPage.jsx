@@ -1,8 +1,11 @@
+// src/pages/DashboardPage.jsx
+
 import React, { useState, useEffect } from 'react';
 import MainLayout from '../components/Layout/MainLayout';
 import { dashboardAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import '../styles/dashboard.css';
+
 
 const DashboardPage = () => {
   const [stats, setStats] = useState({
@@ -62,6 +65,7 @@ const DashboardPage = () => {
   const storageInMB = stats.storageUsed / (1024 * 1024); // Convert bytes to MB
   const totalInMB = stats.storageTotal / (1024 * 1024); // Convert bytes to MB
   const percentUsed = totalInMB > 0 ? ((storageInMB / totalInMB) * 100).toFixed(1) : 0;
+  const storageClass = percentUsed > 90 ? 'danger' : percentUsed > 70 ? 'warning' : '';
 
   if (loading) {
     return (
@@ -115,6 +119,10 @@ const DashboardPage = () => {
               <p className="trash-count">{stats.trashFiles} in trash</p>
             )}
           </div>
+          <div
+            className={`progress-bar ${storageClass}`}
+            style={{ width: `${Math.min(percentUsed, 100)}%` }}
+          ></div>
 
           {/* Recent Uploads */}
           <div className="dashboard-card">

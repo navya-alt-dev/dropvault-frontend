@@ -4,34 +4,35 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 
-// ==================== IMPORT PAGES ====================
+// Pages
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import VerifyPendingPage from './pages/VerifyPendingPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
-
 import DashboardPage from './pages/DashboardPage';
 import MyFilesPage from './pages/MyFilesPage';
 import UploadPage from './pages/UploadPage';
-import SharedFilesPage from './pages/SharedFilesPage';  // ✅ Correct name
+import SharedFilesPage from './pages/SharedFilesPage';
 import SettingsPage from './pages/SettingsPage';
 import TrashPage from './pages/TrashPage';
-
-// ==================== IMPORT COMPONENTS ====================
+import PricingPage from './pages/PricingPage';
 import GoogleCallback from './components/Auth/GoogleCallback';
 import ProtectedRoute from './components/Common/ProtectedRoute';
 
+
 function App() {
   useEffect(() => {
+    // Log environment info
     console.log('🚀 DropVault Starting...');
     console.log('   Environment:', process.env.NODE_ENV);
+    console.log('   API URL:', process.env.REACT_APP_API_URL);
   }, []);
 
   return (
     <AuthProvider>
       <Router>
-        <Toaster
+        <Toaster 
           position="top-right"
           toastOptions={{
             duration: 3000,
@@ -55,15 +56,16 @@ function App() {
             },
           }}
         />
-        
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />}/>
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/google-callback" element={<GoogleCallback />} />
+
+          {/* Email Verification Routes */}
           <Route path="/verify-pending" element={<VerifyPendingPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/google-callback" element={<GoogleCallback />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={
@@ -96,9 +98,14 @@ function App() {
               <TrashPage />
             </ProtectedRoute>
           } />
+          <Route path="/pricing" element={
+            <ProtectedRoute>
+              <PricingPage />
+            </ProtectedRoute>
+          } />
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

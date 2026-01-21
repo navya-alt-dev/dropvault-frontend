@@ -1,11 +1,32 @@
-// src/services/api.js - FIXED VERSION
+// src/services/api.js
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../utils/constants';
 
-// ==================== API BASE URL ====================
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
+import {
+  mockAuthAPI,
+  mockFileAPI,
+  mockDashboardAPI,
+  mockSettingsAPI
+} from './mockApi';
 
-console.log('🌍 API Base URL:', API_BASE_URL);
+// ==================== ENVIRONMENT CHECK ====================
+const isDevelopment = 
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1';
+
+const FORCE_REAL_API = process.env.NODE_ENV === 'production' || 
+                        window.location.hostname.includes('onrender.com');
+
+const FINAL_USE_MOCK = FORCE_REAL_API ? false : isDevelopment;
+
+console.log('🌍 Environment Check:');
+console.log('  - Hostname:', window.location.hostname);
+console.log('  - Is Development:', isDevelopment);
+console.log('  - NODE_ENV:', process.env.NODE_ENV);
+console.log('  - Force Real API:', FORCE_REAL_API);
+console.log('  - Using Mock API:', FINAL_USE_MOCK);
+console.log('  - API Base URL:', API_BASE_URL);
 
 // ==================== AXIOS INSTANCE ====================
 const api = axios.create({
@@ -13,7 +34,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 300000,
   withCredentials: true,
 });
 
@@ -29,7 +50,6 @@ api.interceptors.request.use(
     console.log('📤 API Request:', {
       method: config.method?.toUpperCase(),
       url: config.url,
-      fullURL: `${config.baseURL}${config.url}`,
       hasToken: !!token && token !== 'session-based'
     });
     
@@ -54,20 +74,40 @@ api.interceptors.response.use(
   (error) => {
     console.error('❌ API Error:', {
       url: error.config?.url,
+      message: error.message,
       status: error.response?.status,
-      message: error.response?.data?.error || error.message
+      data: error.response?.data
     });
     
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('sessionid');
-      localStorage.removeItem('user');
+    const { response } = error;
+    
+    if (!response) {
+      console.error('🔴 Network Error - Cannot connect to server');
+      toast.error('Cannot connect to server. Please check your connection.');
+      return Promise.reject(error);
+    }
+    
+    if (response?.status === 401) {
+      const isAuthEndpoint = error.config?.url?.includes('/login') || 
+                             error.config?.url?.includes('/signup') ||
+                             error.config?.url?.includes('/auth/check');
       
-      if (!window.location.pathname.includes('/login') && 
-          !window.location.pathname.includes('/signup') &&
-          !window.location.pathname.includes('/verify')) {
-        window.location.href = '/login';
+      if (!isAuthEndpoint) {
+        console.warn('⚠️ 401 - Session expired or not authenticated');
       }
+    }
+    
+    if (response?.status === 403) {
+      console.warn('⚠️ 403 - Access denied');
+    }
+    
+    if (response?.status === 404) {
+      console.warn('⚠️ 404 - Resource not found:', error.config?.url);
+    }
+    
+    if (response?.status >= 500) {
+      console.error('🔴 500 - Server error');
+      toast.error('Server error. Please try again later.');
     }
     
     return Promise.reject(error);
@@ -75,184 +115,219 @@ api.interceptors.response.use(
 );
 
 // ==================== AUTH API ====================
-export const authAPI = {
-  // ✅ FIXED: Added /api/ prefix
+export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   login: async (credentials) => {
-    console.log('🔐 Attempting login');
-    const response = await api.post('/api/login/', credentials);
+    console.log('🔐 Attempting login to:', `${API_BASE_URL}/login/`);
+    const response = await api.post('/login/', credentials);
     
     if (response.data.success) {
-      const { token, sessionid, user } = response.data;
+      const { token, sessionid } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
-      if (user) localStorage.setItem('user', JSON.stringify(user));
+      console.log('✅ Stored auth tokens');
     }
     
     return response;
   },
   
-  // ✅ FIXED: Added /api/ prefix
   register: async (userData) => {
-    console.log('📝 Attempting registration');
-    const response = await api.post('/api/signup/', userData);
-    return response;
-  },
-  
-  // ✅ FIXED: Changed from /auth/google/ to /api/auth/google/
-  googleLogin: async (code) => {
-    console.log('🔐 Google OAuth - calling /api/auth/google/');
-    const response = await api.post('/api/auth/google/', { code });
+    console.log('📝 Attempting registration to:', `${API_BASE_URL}/signup/`);
+    const response = await api.post('/signup/', userData);
     
     if (response.data.success) {
-      const { token, sessionid, user } = response.data;
+      const { token, sessionid } = response.data;
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
-      if (user) localStorage.setItem('user', JSON.stringify(user));
     }
     
     return response;
   },
   
-  // ✅ FIXED: Added /api/ prefix
-  verifyEmail: async (token) => {
-    console.log('✉️ Verifying email');
-    return api.get(`/api/verify-email-token/?token=${token}`);
+  googleLogin: async (code) => {
+    console.log('🔐 Google OAuth to:', `${API_BASE_URL}/auth/google/`);
+    const response = await api.post('/auth/google/', { code });
+    
+    if (response.data.success) {
+      const { token, sessionid } = response.data;
+      if (token) localStorage.setItem('token', token);
+      if (sessionid) localStorage.setItem('sessionid', sessionid);
+    }
+    
+    return response;
   },
   
-  // ✅ FIXED: Added /api/ prefix
-  resendVerification: async (email) => {
-    console.log('📧 Resending verification to:', email);
-    return api.post('/api/resend-verification/', { email });
-  },
-  
-  // ✅ FIXED: Added /api/ prefix
   logout: async () => {
     console.log('🚪 Logging out');
     try {
-      await api.post('/api/logout/');
+      await api.post('/logout/');
     } catch (e) {
-      console.log('Logout API failed, clearing local storage');
+      console.log('Logout API call failed, clearing local storage anyway');
     }
     localStorage.removeItem('token');
     localStorage.removeItem('sessionid');
-    localStorage.removeItem('user');
   },
   
-  // ✅ FIXED: Added /api/ prefix
-  checkAuth: async () => {
-    console.log('🔍 Checking auth');
-    return api.get('/api/auth/check/');
+  getProfile: () => {
+    console.log('👤 Getting profile');
+    return api.get('/user/');
   },
   
-  // ✅ FIXED: Added /api/ prefix
-  getProfile: async () => {
-    return api.get('/api/user/');
-  },
-  
-  // ✅ FIXED: Added /api/ prefix
-  forgotPassword: async (email) => {
-    return api.post('/api/forgot-password/', { email });
-  },
-  
-  // ✅ FIXED: Added /api/ prefix
-  resetPassword: async (token, password) => {
-    return api.post('/api/reset-password/', { token, password });
+  checkAuth: () => {
+    console.log('🔍 Checking auth status');
+    return api.get('/auth/check/');
   },
 };
 
 // ==================== FILE API ====================
-export const fileAPI = {
+
+export const fileAPI = FINAL_USE_MOCK ? mockFileAPI : {
   getAllFiles: () => {
     console.log('📁 Getting all files');
-    return api.get('/api/list/');
+    return api.get('/list/');
   },
   
   uploadFile: (formData, onUploadProgress) => {
     console.log('📤 Uploading file');
-    return api.post('/api/upload/', formData, {
+    return api.post('/upload/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000,
       onUploadProgress,
     });
   },
   
   deleteFile: (fileId) => {
     console.log('🗑️ Deleting file:', fileId);
-    return api.delete(`/api/delete/${fileId}/`);
+    return api.delete(`/delete/${fileId}/`);
   },
   
   getTrash: () => {
     console.log('🗑️ Getting trash');
-    return api.get('/api/trash/');
+    return api.get('/trash/');
   },
   
   restoreFile: (fileId) => {
     console.log('♻️ Restoring file:', fileId);
-    return api.post(`/api/restore/${fileId}/`);
+    return api.post(`/restore/${fileId}/`);
   },
   
   permanentDelete: (fileId) => {
-    return api.delete(`/api/trash/permanent/${fileId}/`);
+    console.log('🗑️ Permanently deleting file:', fileId);
+    return api.delete(`/trash/permanent/${fileId}/`);
   },
   
+
   emptyTrash: () => {
-    return api.delete('/api/trash/empty/');
+    console.log('🗑️ Emptying trash');
+    return api.delete('/trash/empty/');
   },
   
   shareFile: (fileId, data) => {
-    return api.post(`/api/share/${fileId}/`, data);
+    console.log('🔗 Creating share link:', fileId);
+    return api.post(`/share/${fileId}/`, data);
   },
   
   shareViaEmail: (fileId, data) => {
-    return api.post(`/api/share/${fileId}/email/`, data);
+    console.log('📧 Sharing via email:', fileId);
+    return api.post(`/share/${fileId}/email/`, data);
   },
   
   getSharedFiles: () => {
-    return api.get('/api/shared/');
+    console.log('🔗 Getting shared files');
+    return api.get('/shared/');
   },
   
-  downloadFile: async (fileId) => {
-    return api.get(`/api/download/${fileId}/`, { responseType: 'blob' });
+  downloadFile: (fileId) => {
+    console.log('📥 Downloading file:', fileId);
+    return api.get(`/download/${fileId}/`, { responseType: 'blob' });
   },
 };
 
 // ==================== DASHBOARD API ====================
-export const dashboardAPI = {
+export const dashboardAPI = FINAL_USE_MOCK ? mockDashboardAPI : {
   getStats: () => {
     console.log('📊 Getting dashboard stats');
-    return api.get('/api/dashboard/');
-  },
-  
-  getStorage: () => {
-    return api.get('/api/user/storage/');
+    return api.get('/dashboard/');
   },
 };
 
-// ==================== NOTIFICATIONS API ====================
-export const notificationsAPI = {
+
+
+// ==================== NOTIFICATION API ====================
+export const notificationAPI = FINAL_USE_MOCK ? {
+  // Mock implementation for development
+  getAll: () => Promise.resolve({ 
+    data: { 
+      success: true, 
+      notifications: [], 
+      unread_count: 0 
+    } 
+  }),
+  markAsRead: (id) => Promise.resolve({ data: { success: true } }),
+  markAllAsRead: () => Promise.resolve({ data: { success: true } }),
+  delete: (id) => Promise.resolve({ data: { success: true } }),
+} : {
   getAll: () => {
-    return api.get('/api/notifications/');
+    console.log('🔔 Getting notifications');
+    return api.get('/notifications/');
   },
   
   markAsRead: (notificationId) => {
-    return api.post(`/api/notifications/${notificationId}/read/`);
+    console.log('🔔 Marking notification as read:', notificationId);
+    return api.post(`/notifications/${notificationId}/read/`);
   },
   
   markAllAsRead: () => {
-    return api.post('/api/notifications/read-all/');
+    console.log('🔔 Marking all notifications as read');
+    return api.post('/notifications/read-all/');
   },
   
   delete: (notificationId) => {
-    return api.delete(`/api/notifications/${notificationId}/delete/`);
+    console.log('🔔 Deleting notification:', notificationId);
+    return api.delete(`/notifications/${notificationId}/delete/`);
   },
 };
 
 // ==================== SETTINGS API ====================
-export const settingsAPI = {
-  updateProfile: (data) => api.put('/api/user/profile/', data),
-  updatePassword: (data) => api.put('/api/user/password/', data),
-  getPreferences: () => api.get('/api/user/preferences/'),
-  updatePreferences: (data) => api.put('/api/user/preferences/', data),
+export const settingsAPI = FINAL_USE_MOCK ? mockSettingsAPI : {
+  updateProfile: (data) => {
+    console.log('👤 Updating profile');
+    return api.put('/user/profile/', data);
+  },
+  updatePassword: (data) => {
+    console.log('🔒 Updating password');
+    return api.put('/user/password/', data);
+  },
+  getPreferences: () => {
+    console.log('⚙️ Getting preferences');
+    return api.get('/user/preferences/');
+  },
+  updatePreferences: (data) => {
+    console.log('⚙️ Updating preferences');
+    return api.put('/user/preferences/', data);
+  },
+};
+
+
+export const uploadFile = async (formData, onProgress) => {
+  try {
+    const response = await api.post('/api/upload/', formData, {
+      timeout: 600000,  // ✅ 10 minutes for uploads
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        }
+      },
+    });
+    return response;
+  } catch (error) {
+    console.error('Upload error:', error);
+    throw error;
+  }
 };
 
 export default api;

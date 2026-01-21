@@ -1,10 +1,10 @@
-// src/pages/RegisterPage.jsx - COMPLETE FIXED VERSION
+// src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import '../styles/auth.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-backend.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://dropvault-2.onrender.com';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -49,7 +49,7 @@ const RegisterPage = () => {
     }
 
     if (!agreedToTerms) {
-      newErrors.terms = 'You must agree to the terms';
+      newErrors.terms = 'You must agree to the terms and conditions';
     }
     
     setErrors(newErrors);
@@ -91,12 +91,11 @@ const RegisterPage = () => {
 
       if (data.success) {
         if (data.requires_verification) {
-          // Email verification required
+          // Email verification required - redirect to pending page
           toast.success('Account created! Please check your email to verify.');
-          localStorage.setItem('pendingVerificationEmail', formData.email);
           navigate('/verify-pending', { state: { email: formData.email } });
         } else if (data.token) {
-          // Direct login (for OAuth users setting password)
+          // Direct login (shouldn't happen with email verification enabled)
           localStorage.setItem('token', data.token);
           if (data.sessionid) {
             localStorage.setItem('sessionid', data.sessionid);
@@ -108,10 +107,13 @@ const RegisterPage = () => {
           navigate('/dashboard');
         }
       } else {
-        // Handle errors
-        if (data.error && data.error.includes('already exists')) {
+        // Handle specific errors
+        if (data.error?.includes('already exists')) {
           setErrors({ email: 'An account with this email already exists' });
           toast.error('This email is already registered. Please login instead.');
+        } else if (data.error?.includes('disposable')) {
+          setErrors({ email: 'Disposable email addresses are not allowed' });
+          toast.error('Please use a real email address');
         } else {
           toast.error(data.error || 'Registration failed. Please try again.');
         }
@@ -125,25 +127,15 @@ const RegisterPage = () => {
   };
 
   const handleGoogleSignup = () => {
-    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-    
-    if (!clientId) {
-      toast.error('Google login is not configured');
-      return;
-    }
-    
-    const redirectUri = `${window.location.origin}/google-callback`;
-    
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
+      client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
+      redirect_uri: `${window.location.origin}/google-callback`,
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',
       prompt: 'consent',
     })}`;
     
-    console.log('Google OAuth redirect URI:', redirectUri);
     window.location.href = googleAuthUrl;
   };
 
@@ -168,6 +160,7 @@ const RegisterPage = () => {
 
   return (
     <div className="auth-page">
+      {/* Background Elements */}
       <div className="auth-bg">
         <div className="auth-bg-shape auth-bg-shape-1"></div>
         <div className="auth-bg-shape auth-bg-shape-2"></div>
@@ -233,6 +226,15 @@ const RegisterPage = () => {
               </div>
             </div>
           </div>
+          
+          <div className="auth-branding-footer">
+            <p>Join 10,000+ users worldwide</p>
+            <div className="auth-trust-badges">
+              <span>🔒 Encrypted</span>
+              <span>✓ Verified</span>
+              <span>☁️ Reliable</span>
+            </div>
+          </div>
         </div>
 
         {/* Right Side - Form */}
@@ -262,15 +264,15 @@ const RegisterPage = () => {
               <span>or register with email</span>
             </div>
 
-            {/* Verification Notice */}
+            {/* Email Verification Notice */}
             <div className="verification-notice">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <span>You'll need to verify your email to complete registration</span>
+              <span>You'll need to verify your email address to complete registration</span>
             </div>
 
-            {/* Form */}
+            {/* Register Form */}
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="form-group">
                 <label htmlFor="name">Full Name</label>
@@ -286,6 +288,7 @@ const RegisterPage = () => {
                     onChange={handleChange}
                     placeholder="Enter your full name"
                     className={errors.name ? 'error' : ''}
+                    autoComplete="name"
                   />
                 </div>
                 {errors.name && <span className="error-message">{errors.name}</span>}
@@ -305,6 +308,7 @@ const RegisterPage = () => {
                     onChange={handleChange}
                     placeholder="Enter your email"
                     className={errors.email ? 'error' : ''}
+                    autoComplete="email"
                   />
                 </div>
                 {errors.email && <span className="error-message">{errors.email}</span>}
@@ -322,8 +326,9 @@ const RegisterPage = () => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Create a password (min 8 chars)"
+                    placeholder="Create a password (min 8 characters)"
                     className={errors.password ? 'error' : ''}
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -331,7 +336,16 @@ const RegisterPage = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
                   >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                    {showPassword ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
                   </button>
                 </div>
                 {formData.password && (
@@ -361,6 +375,7 @@ const RegisterPage = () => {
                     onChange={handleChange}
                     placeholder="Confirm your password"
                     className={errors.confirmPassword ? 'error' : ''}
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -368,7 +383,16 @@ const RegisterPage = () => {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     tabIndex={-1}
                   >
-                    {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                    {showConfirmPassword ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
                   </button>
                 </div>
                 {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
@@ -385,7 +409,7 @@ const RegisterPage = () => {
                     }}
                   />
                   <span className="checkmark"></span>
-                  I agree to the <Link to="/terms">Terms</Link> and <Link to="/privacy">Privacy Policy</Link>
+                  I agree to the <Link to="/terms" className="auth-link">Terms of Service</Link> and <Link to="/privacy" className="auth-link">Privacy Policy</Link>
                 </label>
                 {errors.terms && <span className="error-message">{errors.terms}</span>}
               </div>
@@ -401,14 +425,21 @@ const RegisterPage = () => {
                     Creating account...
                   </>
                 ) : (
-                  'Create Account'
+                  <>
+                    Create Account
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </>
                 )}
               </button>
             </form>
 
             <p className="auth-footer-text">
               Already have an account?{' '}
-              <Link to="/login" className="auth-link">Sign in</Link>
+              <Link to="/login" className="auth-link">
+                Sign in
+              </Link>
             </p>
           </div>
         </div>

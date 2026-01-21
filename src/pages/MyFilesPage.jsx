@@ -5,6 +5,7 @@ import MainLayout from '../components/Layout/MainLayout';
 import { fileAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import '../styles/files.css';
+import ShareModal from '../components/Modals/ShareModal';
 
 const MyFilesPage = () => {
   const [files, setFiles] = useState([]);
@@ -14,6 +15,8 @@ const MyFilesPage = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('date');
   const [filterType, setFilterType] = useState('all');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,17 +47,10 @@ const MyFilesPage = () => {
     }
   };
 
-  const handleShare = async (fileId, filename) => {
-    try {
-      const response = await fileAPI.shareFile(fileId, { expiry_days: 7 });
-      const shareUrl = response.data.share_url;
-      
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success(`Share link copied for "${filename}"!`);
-      fetchFiles();
-    } catch (error) {
-      toast.error('Failed to generate share link');
-    }
+  const handleShare = (fileId, filename) => {
+    const file = files.find(f => f.id === fileId);
+    setSelectedFile(file || { id: fileId, filename });
+    setShareModalOpen(true);
   };
 
   const handleDownload = async (fileId, filename) => {
@@ -425,6 +421,15 @@ const MyFilesPage = () => {
           )}
         </div>
       </div>
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => {
+          setShareModalOpen(false);
+          setSelectedFile(null);
+          fetchFiles();
+        }}
+        file={selectedFile}
+      />
     </MainLayout>
   );
 };
