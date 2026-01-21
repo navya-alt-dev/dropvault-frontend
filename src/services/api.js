@@ -154,7 +154,7 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
   },
   
   googleLogin: async (code) => {
-    console.log('🔐 Google OAuth to:', `${API_BASE_URL}/auth/google/`);
+    console.log('🔐 Google OAuth with code');
     const response = await api.post('/auth/google/', { code });
     
     if (response.data.success) {
@@ -162,7 +162,6 @@ export const authAPI = FINAL_USE_MOCK ? mockAuthAPI : {
       if (token) localStorage.setItem('token', token);
       if (sessionid) localStorage.setItem('sessionid', sessionid);
       if (user) localStorage.setItem('user', JSON.stringify(user));
-      console.log('✅ Google login successful');
     }
     
     return response;

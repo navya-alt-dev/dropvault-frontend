@@ -1,6 +1,6 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx - COMPLETE FILE
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';  // ✅ ADD THIS IMPORT
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -17,7 +17,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check authentication on mount
   useEffect(() => {
     checkAuth();
   }, []);
@@ -28,14 +27,12 @@ export const AuthProvider = ({ children }) => {
       const storedUser = localStorage.getItem('user');
       
       if (token && storedUser) {
-        // Verify with backend
         const response = await authAPI.checkAuth();
         
         if (response.data.authenticated) {
           setUser(response.data.user || JSON.parse(storedUser));
           setIsAuthenticated(true);
         } else {
-          // Token invalid, clear storage
           clearAuth();
         }
       } else {
@@ -58,6 +55,7 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
+  // ✅ LOGIN
   const login = async (credentials) => {
     try {
       const response = await authAPI.login(credentials);
@@ -82,9 +80,7 @@ export const AuthProvider = ({ children }) => {
         email: response.data.email
       };
     } catch (error) {
-      console.error('Login error:', error);
       const errorData = error.response?.data || {};
-      
       return { 
         success: false, 
         error: errorData.error || 'Login failed',
@@ -94,12 +90,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ REGISTER
   const register = async (userData) => {
     try {
       const response = await authAPI.register(userData);
       
       if (response.data.success) {
-        // Check if verification is required
         if (response.data.requires_verification) {
           return { 
             success: true, 
@@ -108,7 +104,6 @@ export const AuthProvider = ({ children }) => {
           };
         }
         
-        // Direct login (for Google OAuth)
         const { token, sessionid, user: newUser } = response.data;
         
         if (token) localStorage.setItem('token', token);
@@ -127,9 +122,7 @@ export const AuthProvider = ({ children }) => {
         requires_verification: response.data.requires_verification
       };
     } catch (error) {
-      console.error('Register error:', error);
       const errorData = error.response?.data || {};
-      
       return { 
         success: false, 
         error: errorData.error || 'Registration failed',
@@ -138,8 +131,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ GOOGLE LOGIN - THIS IS THE CRITICAL ONE
   const googleLogin = async (code) => {
     try {
+      console.log('🔐 AuthContext: Calling googleLogin with code');
       const response = await authAPI.googleLogin(code);
       
       if (response.data.success) {
@@ -152,12 +147,13 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
         setIsAuthenticated(true);
         
+        console.log('✅ Google login successful in AuthContext');
         return { success: true };
       }
       
       return { success: false, error: response.data.error };
     } catch (error) {
-      console.error('Google login error:', error);
+      console.error('❌ Google login error in AuthContext:', error);
       return { 
         success: false, 
         error: error.response?.data?.error || 'Google login failed' 
@@ -165,6 +161,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ VERIFY EMAIL
   const verifyEmail = async (token) => {
     try {
       const response = await authAPI.verifyEmail(token);
@@ -176,7 +173,6 @@ export const AuthProvider = ({ children }) => {
         if (sessionid) localStorage.setItem('sessionid', sessionid);
         if (userData) localStorage.setItem('user', JSON.stringify(userData));
         
-        // Clear pending verification email
         localStorage.removeItem('pendingVerificationEmail');
         
         setUser(userData);
@@ -192,9 +188,7 @@ export const AuthProvider = ({ children }) => {
         email: response.data.email
       };
     } catch (error) {
-      console.error('Verify email error:', error);
       const errorData = error.response?.data || {};
-      
       return { 
         success: false, 
         error: errorData.error || 'Verification failed',
@@ -204,6 +198,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ RESEND VERIFICATION
   const resendVerification = async (email) => {
     try {
       const response = await authAPI.resendVerification(email);
@@ -213,7 +208,6 @@ export const AuthProvider = ({ children }) => {
         error: response.data.error 
       };
     } catch (error) {
-      console.error('Resend verification error:', error);
       return { 
         success: false, 
         error: error.response?.data?.error || 'Failed to send email' 
@@ -221,6 +215,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ LOGOUT
   const logout = async () => {
     try {
       await authAPI.logout();
@@ -231,13 +226,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ CONTEXT VALUE - ALL FUNCTIONS MUST BE HERE
   const value = {
     user,
     loading,
     isAuthenticated,
     login,
     register,
-    googleLogin,
+    googleLogin,        // ✅ CRITICAL - Must be included
     verifyEmail,
     resendVerification,
     logout,
