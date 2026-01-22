@@ -278,6 +278,13 @@ export const notificationAPI = FINAL_USE_MOCK ? {
 };
 
 // ==================== SETTINGS API ====================
+export const userAPI = {
+  getStorage: () => {
+    console.log('💾 Getting storage info');
+    return api.get('/api/user/storage/');
+  },
+};
+
 export const settingsAPI = FINAL_USE_MOCK ? mockSettingsAPI : {
   updateProfile: (data) => {
     console.log('👤 Updating profile');
@@ -294,6 +301,10 @@ export const settingsAPI = FINAL_USE_MOCK ? mockSettingsAPI : {
   updatePreferences: (data) => {
     console.log('⚙️ Updating preferences');
     return api.put('/api/user/preferences/', data);
+  },
+    getStorage: () => {
+    console.log('💾 Getting storage info');
+    return api.get('/api/user/storage/');
   },
 };
 
